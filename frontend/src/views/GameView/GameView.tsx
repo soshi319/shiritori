@@ -1,192 +1,332 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Screen } from '../../types/screen';
-import { characters } from '../../data/characters';
-import { calculateBaseDamage } from '../../utils/damageCalculator';
+import { characters } from 'shared/data/characters';
 import { HpBar } from '../../components/game/HpBar';
 import { TurnTimer } from '../../components/game/TurnTimer';
 import { WordInputField } from '../../components/game/WordInputField';
+import { FirstTurnAnnouncement } from '../../components/game/FirstTurnAnnouncement';
 import { CounterEffect, type EffectData } from '../../components/game/CounterEffect';
+import { ComboIndicator } from '../../components/game/ComboIndicator';
+import { PoisonBadge } from '../../components/game/PoisonBadge';
+import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
+import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
+import type { ServerMessage, ClientMessage, PlayerState } from 'shared/types/messageTypes';
+import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
+
+// 再レンダリング時にタイマーが壊れるのを防ぐため、ダミー関数をコンポーネント外に固定定義
+const handleTimeUpDummy = () => {};
 
 type GameViewProps = {
   changeScreen: (screen: Screen) => void;
   myCharacterId: string;
 };
 
-const DUMMY_PREDICTED_WORD = 'あああ';
-const SECOND_TURN_HP_BONUS = 10;
-
 export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
+  const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
+  const statusRef = useRef(status);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+
+  const [myState, setMyState] = useState<PlayerState | null>(null);
+  const [opponentState, setOpponentState] = useState<PlayerState | null>(null);
+  const myStateRef = useRef<PlayerState | null>(null);
+  const opponentStateRef = useRef<PlayerState | null>(null);
+
+  const [currentWord, setCurrentWord] = useState('');
+  const [activePlayerId, setActivePlayerId] = useState('');
+  const [turnId, setTurnId] = useState(0);
+  const [turnDuration, setTurnDuration] = useState(40);
+  const [effect, setEffect] = useState<EffectData | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+
+  const [gameOverReason, setGameOverReason] = useState<string | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
+
+  const [isWaitingSync, setIsWaitingSync] = useState(false);
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  const [comboBurst, setComboBurst] = useState<number | null>(null);
+  const [poisonBurst, setPoisonBurst] = useState(0);
+
   const myCharacter = characters.find((c) => c.id === myCharacterId)!;
 
-  const [opponentCharacter] = useState(() => {
-    const others = characters.filter((c) => c.id !== myCharacterId);
-    return others[Math.floor(Math.random() * others.length)];
-  });
-
-  const [gameSetup] = useState(() => {
-    const firstIsMe = Math.random() < 0.5;
-    return {
-      firstIsMe,
-      myStartHp: myCharacter.maxHp + (firstIsMe ? 0 : SECOND_TURN_HP_BONUS),
-      opponentStartHp: opponentCharacter.maxHp + (firstIsMe ? SECOND_TURN_HP_BONUS : 0),
-    };
-  });
-
-  const [currentMyHp, setCurrentMyHp] = useState(gameSetup.myStartHp);
-  const [currentOpponentHp, setCurrentOpponentHp] = useState(gameSetup.opponentStartHp);
-  const [isPlayerTurn, setIsPlayerTurn] = useState(gameSetup.firstIsMe);
-
-  const [turnId, setTurnId] = useState(1);
-  const [log, setLog] = useState<string[]>([]);
-  const [isGameOver, setIsGameOver] = useState(false);
-
-  const [effect, setEffect] = useState<EffectData | null>(null);
-  const [effectCounter, setEffectCounter] = useState(0);
-
-  function addLog(message: string) {
-    setLog((prev) => [...prev, message]);
-  }
-
-  function applyCounterReduction(character: typeof myCharacter, damage: number) {
-    if (character.skillType === 'counterReduction') {
-      return Math.floor(damage / 2);
-    }
-    return damage;
-  }
-
-  function triggerEffect(type: 'reflect' | 'hit', damage: number) {
-    setEffectCounter((prev) => prev + 1);
-    setEffect({ id: effectCounter + 1, type, damage });
-  }
-
-  // ターンを進める共通処理（攻守交代）
-  function advanceTurn() {
-    setIsPlayerTurn((prev) => !prev);
-    setTurnId((prev) => prev + 1);
-  }
-
-  // 通常のターン処理（単語が入力された場合）
-  function resolveTurn(attackerWord: string) {
-    if (isGameOver) return;
-
-    const attacker = isPlayerTurn ? myCharacter : opponentCharacter;
-    const isReflected = attackerWord === DUMMY_PREDICTED_WORD;
-    const rawDamage = calculateBaseDamage(attacker, attackerWord);
-
-    if (isReflected) {
-      const finalDamage = applyCounterReduction(attacker, rawDamage);
-      triggerEffect('reflect', finalDamage);
-
-      if (isPlayerTurn) {
-        const newHp = Math.max(0, currentMyHp - finalDamage);
-        setCurrentMyHp(newHp);
-        addLog(`反射！ あなたの「${attackerWord}」が跳ね返り、${finalDamage}ダメージを受けた！`);
-        if (newHp <= 0) {
-          setIsGameOver(true);
-          addLog('あなたの敗北...');
-          return;
-        }
-      } else {
-        const newHp = Math.max(0, currentOpponentHp - finalDamage);
-        setCurrentOpponentHp(newHp);
-        addLog(`${opponentCharacter.name}の攻撃が反射され、${finalDamage}ダメージを受けた！`);
-        if (newHp <= 0) {
-          setIsGameOver(true);
-          addLog('あなたの勝利！');
-          return;
-        }
-      }
-    } else {
-      triggerEffect('hit', rawDamage);
-
-      if (isPlayerTurn) {
-        const newHp = Math.max(0, currentOpponentHp - rawDamage);
-        setCurrentOpponentHp(newHp);
-        addLog(`あなたの「${attackerWord}」で${opponentCharacter.name}に${rawDamage}ダメージ！`);
-        if (newHp <= 0) {
-          setIsGameOver(true);
-          addLog('あなたの勝利！');
-          return;
-        }
-      } else {
-        const newHp = Math.max(0, currentMyHp - rawDamage);
-        setCurrentMyHp(newHp);
-        addLog(`${opponentCharacter.name}の「${attackerWord}」で${rawDamage}ダメージを受けた！`);
-        if (newHp <= 0) {
-          setIsGameOver(true);
-          addLog('あなたの敗北...');
-          return;
-        }
-      }
-    }
-
-    advanceTurn();
-  }
-
-  // 時間切れ専用処理（ダメージ計算を一切通さない）
-  function forfeitTurn() {
-    if (isGameOver) return;
-    const whoName = isPlayerTurn ? 'あなた' : opponentCharacter.name;
-    addLog(`${whoName}は時間切れ！ 何も打てなかった...`);
-    advanceTurn();
-  }
-
-  // エフェクトは1.2秒後に自動で消す
+  // 先攻/後攻の発表演出が終わったら、自動的に対戦画面へ切り替える
   useEffect(() => {
-    if (!effect) return;
-    const timer = setTimeout(() => setEffect(null), 1200);
-    return () => clearTimeout(timer);
-  }, [effect]);
-
-  // 相手のターンになったら、ダミーとして少し待ってから自動で単語を送信する
-  useEffect(() => {
-    if (isGameOver || isPlayerTurn) return;
+    if (status !== 'ANNOUNCING') return;
 
     const timer = setTimeout(() => {
-      const dummyLength = Math.floor(Math.random() * 5) + 1;
-      const dummyWord = 'し'.repeat(dummyLength);
-      resolveTurn(dummyWord);
-    }, 1500);
+      setStatus('PLAYING');
+    }, 2500);
 
     return () => clearTimeout(timer);
-  }, [isPlayerTurn, turnId, isGameOver]);
+  }, [status]);
+
+  // statusが変わるたびに、statusRefの中身も最新に更新しておく
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  // myState / opponentState が変わるたびに、refの中身も最新に更新しておく
+  useEffect(() => {
+    myStateRef.current = myState;
+  }, [myState]);
+
+  useEffect(() => {
+    opponentStateRef.current = opponentState;
+  }, [opponentState]);
+
+  // 毒の演出は1.6秒後に自動で消す
+  useEffect(() => {
+    if (poisonBurst === 0) return;
+    const timer = setTimeout(() => setPoisonBurst(0), 1600);
+    return () => clearTimeout(timer);
+  }, [poisonBurst]);
+
+  // コンボの演出は1.2秒後に自動で消す
+  useEffect(() => {
+    if (comboBurst === null) return;
+    const timer = setTimeout(() => setComboBurst(null), 1200);
+    return () => clearTimeout(timer);
+  }, [comboBurst]);
+
+  // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
+  useEffect(() => {
+    const socket = new WebSocket('ws://localhost:8000');
+
+    socket.onopen = () => {
+      setStatus('WAITING');
+      const joinMsg: ClientMessage = {
+        type: 'JOIN_ROOM',
+        payload: { playerName: 'プレイヤー', characterId: myCharacterId },
+      };
+      socket.send(JSON.stringify(joinMsg));
+    };
+
+    socket.onmessage = (event) => {
+      const msg = JSON.parse(event.data) as ServerMessage;
+
+      switch (msg.type) {
+        case 'MATCHED': {
+          setMyState(msg.payload.me);
+          setOpponentState(msg.payload.opponent);
+          setCurrentWord(msg.payload.initialWord);
+          setActivePlayerId(msg.payload.firstPlayerId);
+          setStatus('ANNOUNCING');
+          setLog(['対戦相手が見つかりました！バトルスタート！']);
+          break;
+        }
+
+        case 'TURN_START': {
+          setTurnId(msg.payload.turnId);
+          setActivePlayerId(msg.payload.activePlayerId);
+          setCurrentWord(msg.payload.previousWord);
+          setTurnDuration(msg.payload.duration);
+          setIsWaitingSync(false);
+          setInputError(null);
+          break;
+        }
+
+        case 'TURN_RESULT': {
+          // refを経由して「今の本当の最新値」を読む（stale closure対策）
+          const prevMyCombo = myStateRef.current?.comboCount ?? 0;
+          const prevOpponentCombo = opponentStateRef.current?.comboCount ?? 0;
+          const prevMyPoisonStacks = myStateRef.current?.poisonStacks ?? 0;
+          const prevOpponentPoisonStacks = opponentStateRef.current?.poisonStacks ?? 0;
+
+          setMyState(msg.payload.myState);
+          setOpponentState(msg.payload.opponentState);
+          setCurrentWord(msg.payload.word);
+          setIsWaitingSync(false);
+
+          if (msg.payload.effect) setEffect(msg.payload.effect);
+
+          if (msg.payload.errorMessage) {
+            setLog((prev) => [`判定エラー: ${msg.payload.errorMessage}`, ...prev]);
+          } else {
+            setLog((prev) => [`「${msg.payload.word}」！`, ...prev]);
+          }
+
+          // コンボが2以上に伸びた瞬間だけ、演出を発火
+          const newMyCombo = msg.payload.myState.comboCount;
+          const newOpponentCombo = msg.payload.opponentState.comboCount;
+
+          if (newMyCombo > prevMyCombo && newMyCombo >= 2) {
+            setComboBurst(newMyCombo);
+          } else if (newOpponentCombo > prevOpponentCombo && newOpponentCombo >= 2) {
+            setComboBurst(newOpponentCombo);
+          }
+
+          // 毒スタックが増えた瞬間だけ、演出を発火
+          const newlyPoisoned =
+            msg.payload.myState.poisonStacks > prevMyPoisonStacks ||
+            msg.payload.opponentState.poisonStacks > prevOpponentPoisonStacks;
+
+          if (newlyPoisoned) {
+            setPoisonBurst((prev) => prev + 1);
+            setLog((prev) => ['毒を受けた！体が紫色に染まっていく…', ...prev]);
+          }
+
+          if (msg.payload.poisonDamage && msg.payload.poisonDamage.myDamage > 0) {
+            setLog((prev) => [`毒ダメージを ${msg.payload.poisonDamage?.myDamage} 受けた！`, ...prev]);
+          }
+          break;
+        }
+
+        case 'WAIT_OPPONENT': {
+          setIsWaitingSync(true);
+          break;
+        }
+
+        case 'GAME_OVER': {
+          setWinnerId(msg.payload.winnerId);
+          setGameOverReason(msg.payload.reason);
+          setStatus('GAME_OVER');
+          break;
+        }
+      }
+    };
+
+    socket.onclose = () => {
+      if (statusRef.current !== 'GAME_OVER') {
+        setLog((prev) => ['サーバーから切断されました', ...prev]);
+        setStatus('GAME_OVER');
+      }
+    };
+
+    setWs(socket);
+    return () => socket.close();
+  }, [myCharacterId]);
+
+  function handleSubmitWord(word: string) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const requiredStart = getRequiredNextStart(currentWord);
+    const hiraWord = normalizeWordForComparison(word);
+
+    if (!hiraWord.startsWith(requiredStart)) {
+      setInputError(`「${requiredStart}」から始まる言葉を入力してください！`);
+      return;
+    }
+
+    setInputError(null);
+    const msg: ClientMessage = { type: 'SUBMIT_WORD', payload: { word } };
+    ws.send(JSON.stringify(msg));
+  }
+
+  if (status === 'CONNECTING') {
+    return <div className="flex h-screen items-center justify-center">サーバーに接続中...</div>;
+  }
+
+  if (status === 'WAITING') {
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4">
+        <div className="animate-spin h-10 w-10 border-4 border-indigo-500 rounded-full border-t-transparent"></div>
+        <p>対戦相手を待っています...</p>
+      </div>
+    );
+  }
+
+  if (status === 'ANNOUNCING') {
+    const isMeFirst = myState !== null && activePlayerId === myState.id;
+    return (
+      <FirstTurnAnnouncement
+        isMeFirst={isMeFirst}
+        opponentName={opponentState?.name ?? '相手'}
+      />
+    );
+  }
+
+  const isMyTurn = myState && activePlayerId === myState.id;
+  const isGameOver = status === 'GAME_OVER';
 
   return (
     <div className="flex flex-col min-h-[100dvh] w-full max-w-2xl mx-auto">
       <CounterEffect effect={effect} />
+      {comboBurst !== null && <ComboBurstEffect comboCount={comboBurst} />}
+      {poisonBurst !== 0 && <PoisonBurstEffect />}
+
       <div className="flex-1 overflow-y-auto flex flex-col items-center gap-6 p-6">
         <div className="w-full flex justify-between gap-4">
-          <HpBar name={myCharacter.name} currentHp={currentMyHp} maxHp={myCharacter.maxHp} />
-          <HpBar name={opponentCharacter.name} currentHp={currentOpponentHp} maxHp={opponentCharacter.maxHp} />
+          {myState && (
+            <HpBar
+              name={myCharacter.name}
+              currentHp={myState.hp}
+              maxHp={myState.maxHp}
+              badge={
+                <>
+                  {myState.characterId === 'C' && <ComboIndicator comboCount={myState.comboCount} />}
+                  <PoisonBadge poisonStacks={myState.poisonStacks} />
+                </>
+              }
+            />
+          )}
+          {opponentState && (
+            <HpBar
+              name="相手"
+              currentHp={opponentState.hp}
+              maxHp={opponentState.maxHp}
+              badge={
+                <>
+                  {opponentState.characterId === 'C' && <ComboIndicator comboCount={opponentState.comboCount} />}
+                  <PoisonBadge poisonStacks={opponentState.poisonStacks} />
+                </>
+              }
+            />
+          )}
         </div>
 
-        <p className="text-sm text-gray-400">
-          {isPlayerTurn ? 'あなたのターン' : `${opponentCharacter.name}のターン`}
-        </p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-gray-400">
+            {isMyTurn ? 'あなたのターン' : '相手のターン（反射の準備！）'}
+          </p>
+          <p className="text-3xl font-bold text-indigo-400">「{currentWord}」</p>
+        </div>
 
-        {!isGameOver && <TurnTimer turnId={turnId} onTimeUp={forfeitTurn} />}
+        {!isGameOver && (
+          <TurnTimer turnId={turnId} duration={turnDuration} onTimeUp={handleTimeUpDummy} />
+        )}
 
         <div className="w-full h-40 overflow-y-auto bg-gray-800 rounded-lg p-3 text-sm flex flex-col gap-1">
           {log.map((entry, index) => (
-            <p key={index}>{entry}</p>
+            <p key={index} className={index === 0 ? 'text-white' : 'text-gray-500'}>{entry}</p>
           ))}
         </div>
       </div>
 
       <div className="sticky bottom-0 bg-gray-900 p-4">
         {!isGameOver ? (
-          isPlayerTurn ? (
-            <WordInputField onSubmit={resolveTurn} />
-          ) : (
-            <p className="text-center text-gray-400 py-3">相手のターンです...</p>
-          )
+          <div className="flex flex-col w-full items-center">
+            {inputError && (
+              <p className="text-red-400 text-sm font-bold animate-pulse mb-2">{inputError}</p>
+            )}
+
+            {isWaitingSync ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <div className="animate-spin h-6 w-6 border-4 border-indigo-500 rounded-full border-t-transparent"></div>
+                <p className="text-indigo-300 font-bold">相手の入力を待っています...</p>
+              </div>
+            ) : (
+              <WordInputField onSubmit={handleSubmitWord} disabled={false} />
+            )}
+          </div>
         ) : (
-          <button
-            onClick={() => changeScreen('title')}
-            className="w-full px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500"
-          >
-            タイトルへ戻る
-          </button>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <h2 className="text-2xl font-bold">
+              {myState?.id === winnerId ? '🎉 あなたの勝利！' : '💀 あなたの敗北...'}
+            </h2>
+            <p className="text-sm text-gray-400">
+              決着の理由:{' '}
+              {gameOverReason === 'hp_zero' ? 'HPが0になった' :
+               gameOverReason === 'time_up' ? '時間切れ' :
+               gameOverReason === 'bakudan_failed' ? 'ばくだん自爆（即死）' :
+               gameOverReason === 'poison' ? '毒によるダメージ' : '通信切断'}
+            </p>
+            <button
+              onClick={() => changeScreen('title')}
+              className="px-6 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500"
+            >
+              タイトルへ戻る
+            </button>
+          </div>
         )}
       </div>
     </div>

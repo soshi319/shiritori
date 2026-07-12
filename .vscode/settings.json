@@ -1,0 +1,15 @@
+{
+    "deno.enable": false,
+    "deno.enablePaths": [
+        "./backend"
+    ],
+    "deno.lint": true,
+    "editor.formatOnSave": true,
+    "[typescript]": {
+        "editor.defaultFormatter": "denoland.vscode-deno"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features",
+        "editor.tabSize": 2
+    }
+}

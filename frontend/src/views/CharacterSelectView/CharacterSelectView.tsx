@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Screen } from '../../types/screen';
-import { characters } from '../../data/characters';
+import { characters } from 'shared/data/characters';
 
 type CharacterSelectViewProps = {
   changeScreen: (screen: Screen) => void;

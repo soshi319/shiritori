@@ -2,17 +2,20 @@ type HpBarProps = {
   name: string;
   currentHp: number;
   maxHp: number;
+  badge?: React.ReactNode; // 【追加】名前の横に表示する任意の要素
 };
 
-export function HpBar({ name, currentHp, maxHp }: HpBarProps) {
-  // オーバーヒール中はバーが100%を超えないよう、表示上は100%に留める
+export function HpBar({ name, currentHp, maxHp, badge }: HpBarProps) {
   const hpPercentage = Math.min(100, Math.max(0, (currentHp / maxHp) * 100));
   const isOverHealed = currentHp > maxHp;
 
   return (
     <div className="w-full max-w-md">
-      <div className="flex justify-between mb-1 text-sm">
-        <span className="font-bold">{name}</span>
+      <div className="flex justify-between items-center mb-1 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="font-bold">{name}</span>
+          {badge}
+        </div>
         <span className={isOverHealed ? 'text-cyan-300 font-bold' : ''}>
           {currentHp} / {maxHp}
         </span>
