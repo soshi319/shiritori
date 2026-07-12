@@ -3,15 +3,22 @@ import { TitleView } from './views/TitleView';
 import { ModeSelectView } from './views/ModeSelectView';
 import { CharacterSelectView } from './views/CharacterSelectView';
 import { GameView } from './views/GameView';
+import { RuleView } from './views/RuleView';
+import { Modal } from './components/common/Modal';
 import type { Screen } from './types/screen';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('title');
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex items-center justify-center">
       {currentScreen === 'title' && (
-        <TitleView changeScreen={setCurrentScreen} />
+        <TitleView
+          changeScreen={setCurrentScreen}
+          onOpenRules={() => setIsRuleModalOpen(true)}
+        />
       )}
 
       {currentScreen === 'modeSelect' && (
@@ -19,12 +26,22 @@ function App() {
       )}
 
       {currentScreen === 'characterSelect' && (
-        <CharacterSelectView changeScreen={setCurrentScreen} />
+        <CharacterSelectView
+          changeScreen={setCurrentScreen}
+          onConfirmCharacter={setSelectedCharacterId}
+        />
       )}
 
-      {currentScreen === 'game' && (
-        <GameView changeScreen={setCurrentScreen} />
+      {currentScreen === 'game' && selectedCharacterId && (
+        <GameView
+          changeScreen={setCurrentScreen}
+          myCharacterId={selectedCharacterId}
+        />
       )}
+
+      <Modal isOpen={isRuleModalOpen} onClose={() => setIsRuleModalOpen(false)}>
+        <RuleView />
+      </Modal>
     </div>
   );
 }

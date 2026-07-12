@@ -4,9 +4,10 @@ import { characters } from '../../data/characters';
 
 type CharacterSelectViewProps = {
   changeScreen: (screen: Screen) => void;
+  onConfirmCharacter: (characterId: string) => void;
 };
 
-export function CharacterSelectView({ changeScreen }: CharacterSelectViewProps) {
+export function CharacterSelectView({ changeScreen, onConfirmCharacter }: CharacterSelectViewProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDescription, setShowDescription] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -108,7 +109,10 @@ export function CharacterSelectView({ changeScreen }: CharacterSelectViewProps) 
       </div>
 
       <button
-        onClick={() => changeScreen('game')}
+        onClick={() => {
+          onConfirmCharacter(selectedCharacter.id);
+          changeScreen('game');
+        }}
         className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500"
       >
         このキャラクターで対戦する
