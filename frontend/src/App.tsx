@@ -4,6 +4,7 @@ import { ModeSelectView } from './views/ModeSelectView';
 import { CharacterSelectView } from './views/CharacterSelectView';
 import { GameView } from './views/GameView';
 import { RuleView } from './views/RuleView';
+import { PracticeView } from './views/PracticeView';
 import { Modal } from './components/common/Modal';
 import type { Screen } from './types/screen';
 
@@ -36,6 +37,12 @@ function App() {
         <GameView
           changeScreen={setCurrentScreen}
           myCharacterId={selectedCharacterId}
+        />
+      )}
+
+      {currentScreen === 'practice' && (
+        <PracticeView
+          changeScreen={setCurrentScreen}
         />
       )}
 

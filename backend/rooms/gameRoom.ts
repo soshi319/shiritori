@@ -308,7 +308,9 @@ export class GameRoom {
     word: string,
     isValid: boolean,
     isBakudan: boolean,
+    // deno-lint-ignore no-explicit-any
     effect: any,
+    // deno-lint-ignore no-explicit-any
     poisonDamage: any,
     errorMessage: string | null,
   ) {
