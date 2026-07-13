@@ -37,6 +37,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const [turnDuration, setTurnDuration] = useState(40);
   const [effect, setEffect] = useState<EffectData | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
 
   const [gameOverReason, setGameOverReason] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
@@ -48,6 +49,12 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const [poisonBurst, setPoisonBurst] = useState(0);
 
   const myCharacter = characters.find((c) => c.id === myCharacterId)!;
+
+  type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
+
+  // 自分と相手の演出状態を管理するState
+  const [myAnim, setMyAnim] = useState<CharAnimState>('IDLE');
+  const [opponentAnim, setOpponentAnim] = useState<CharAnimState>('IDLE');
 
   // 先攻/後攻の発表演出が終わったら、自動的に対戦画面へ切り替える
   useEffect(() => {
@@ -74,6 +81,15 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
     opponentStateRef.current = opponentState;
   }, [opponentState]);
 
+  useEffect(() => {
+    if (currentWord) {
+      setHistory((prev) => {
+        if (prev.includes(currentWord)) return prev;
+        return [...prev, currentWord];
+      });
+    }
+  }, [currentWord]);
+
   // 毒の演出は1.6秒後に自動で消す
   useEffect(() => {
     if (poisonBurst === 0) return;
@@ -87,6 +103,12 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
     const timer = setTimeout(() => setComboBurst(null), 1200);
     return () => clearTimeout(timer);
   }, [comboBurst]);
+
+  useEffect(() => {
+    if (!effect) return;
+    const timer = setTimeout(() => setEffect(null), 600);
+    return () => clearTimeout(timer);
+  }, [effect]);
 
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
@@ -131,7 +153,6 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
         }
 
         case 'TURN_RESULT': {
-          // refを経由して「今の本当の最新値」を読む（stale closure対策）
           const prevMyCombo = myStateRef.current?.comboCount ?? 0;
           const prevOpponentCombo = opponentStateRef.current?.comboCount ?? 0;
           const prevMyPoisonStacks = myStateRef.current?.poisonStacks ?? 0;
@@ -142,7 +163,40 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           setCurrentWord(msg.payload.word);
           setIsWaitingSync(false);
 
-          if (msg.payload.effect) setEffect(msg.payload.effect);
+          const currentIsMyTurn = myStateRef.current && activePlayerId === myStateRef.current.id;
+          const effect = msg.payload.effect;
+
+          if (effect) {
+            setEffect(effect);
+            if (effect.type === 'reflect') {
+              if (currentIsMyTurn) {
+                setMyAnim('REFLECT_BACK');
+                setOpponentAnim('IDLE');
+              } else {
+                setOpponentAnim('REFLECT_BACK');
+                setMyAnim('IDLE');
+              }
+            } else if (effect.type === 'hit') {
+              if (currentIsMyTurn) {
+                setMyAnim('ATTACK');
+                setOpponentAnim('HIT_SHAKE');
+              } else {
+                setOpponentAnim('ATTACK');
+                setMyAnim('HIT_SHAKE');
+              }
+            }
+          } else {
+            if (currentIsMyTurn) {
+              setMyAnim('ATTACK');
+            } else {
+              setOpponentAnim('ATTACK');
+            }
+          }
+
+          setTimeout(() => {
+            setMyAnim('IDLE');
+            setOpponentAnim('IDLE');
+          }, 450);
 
           if (msg.payload.errorMessage) {
             setLog((prev) => [`判定エラー: ${msg.payload.errorMessage}`, ...prev]);
@@ -150,7 +204,6 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
             setLog((prev) => [`「${msg.payload.word}」！`, ...prev]);
           }
 
-          // コンボが2以上に伸びた瞬間だけ、演出を発火
           const newMyCombo = msg.payload.myState.comboCount;
           const newOpponentCombo = msg.payload.opponentState.comboCount;
 
@@ -160,7 +213,6 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
             setComboBurst(newOpponentCombo);
           }
 
-          // 毒スタックが増えた瞬間だけ、演出を発火
           const newlyPoisoned =
             msg.payload.myState.poisonStacks > prevMyPoisonStacks ||
             msg.payload.opponentState.poisonStacks > prevOpponentPoisonStacks;
@@ -218,7 +270,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   }
 
   if (status === 'CONNECTING') {
-    return <div className="flex h-screen items-center justify-center">サーバーに接続中...</div>;
+    return <div className="flex h-screen items-center justify-center bg-zinc-400 text-zinc-900 font-bold">サーバーに接続中...</div>;
   }
 
   if (status === 'WAITING') {
@@ -243,8 +295,14 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const isMyTurn = myState && activePlayerId === myState.id;
   const isGameOver = status === 'GAME_OVER';
 
+  const requiredStartNow = getRequiredNextStart(currentWord);
+
+  const matchingPastWords = history
+    .filter((w) => w !== currentWord)
+    .filter((w) => w.startsWith(requiredStartNow));
+
   return (
-    <div className="flex flex-col min-h-[100dvh] w-full max-w-2xl mx-auto">
+    <div className="flex flex-col min-h-[100dvh] w-full max-w-2xl mx-auto bg-zinc-400">
       <CounterEffect effect={effect} />
       {comboBurst !== null && <ComboBurstEffect comboCount={comboBurst} />}
       {poisonBurst !== 0 && <PoisonBurstEffect />}
@@ -279,9 +337,19 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           )}
         </div>
 
-        <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2">
+        <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 relative min-h-[160px]">
           {myState && (
-            <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+            <div 
+              className={`w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center transition-all ease-out relative ${
+                myAnim === 'ATTACK' ? 'translate-x-16 duration-150 z-10' :
+                myAnim === 'REFLECT_BACK' ? '-translate-x-12 duration-150' :
+                myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                'translate-x-0 duration-300'
+              }`}
+            >
+              {effect?.type === 'reflect' && isMyTurn && (
+                <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
+              )}
               <img
                 src={`/images/${myState.characterId}.png`}
                 alt="自分のキャラクター"
@@ -291,7 +359,17 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           )}
 
           {opponentState && (
-            <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+            <div 
+              className={`w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center transition-all ease-out relative ${
+                opponentAnim === 'ATTACK' ? '-translate-x-16 duration-150 z-10' :
+                opponentAnim === 'REFLECT_BACK' ? 'translate-x-12 duration-150' :
+                opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                'translate-x-0 duration-300'
+              }`}
+            >
+              {effect?.type === 'reflect' && !isMyTurn && (
+                <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
+              )}
               <img
                 src={`/images/${opponentState.characterId}.png`}
                 alt="相手のキャラクター"
@@ -321,7 +399,25 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
         </div>
       </div>
 
-      <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40">
+      <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40 flex flex-col gap-4">
+        {!isGameOver && matchingPastWords.length > 0 && (
+          <div className="w-full max-w-md mx-auto animate-fade-in">
+            <p className="text-xs font-bold text-zinc-600 mb-1.5 px-1">
+              　「{requiredStartNow}」 から始まる使用済みの言葉
+            </p>
+            <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+              {matchingPastWords.map((w, index) => (
+                <span
+                  key={index}
+                  className="px-2.5 py-0.5 bg-zinc-200 border border-zinc-300 rounded-full text-xs font-medium text-zinc-700 shadow-sm"
+                >
+                  {w}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!isGameOver ? (
           <div className="flex flex-col w-full items-center">
             {inputError && (
@@ -334,7 +430,12 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
                 <p className="text-zinc-700 font-semibold text-sm">相手の入力を待っています...</p>
               </div>
             ) : (
-              <WordInputField onSubmit={handleSubmitWord} disabled={false} isMyTurn={isMyTurn ?? false} />
+              <WordInputField 
+                onSubmit={handleSubmitWord} 
+                disabled={false} 
+                isMyTurn={isMyTurn ?? false} 
+                requiredStart={requiredStartNow} 
+              />
             )}
           </div>
         ) : (

@@ -4,9 +4,10 @@ type WordInputFieldProps = {
   onSubmit: (word: string) => void;
   disabled?: boolean;
   isMyTurn: boolean;
+  requiredStart: string;
 };
 
-export function WordInputField({ onSubmit, disabled = false, isMyTurn }: WordInputFieldProps) {
+export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredStart }: WordInputFieldProps) {
   const [word, setWord] = useState('');
 
   function handleSubmit() {
@@ -40,7 +41,7 @@ export function WordInputField({ onSubmit, disabled = false, isMyTurn }: WordInp
           onChange={(e) => setWord(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder={isMyTurn ? "「し」から始まる単語を入力..." : "相手が打つ単語を先読み予測..."}
+          placeholder={isMyTurn ? `「${requiredStart}」から始まる単語を入力...` : `相手が打つ単語を先読み予測...`}
           className={`flex-1 px-4 py-3 rounded-xl bg-white text-zinc-900 placeholder-zinc-400 focus:outline-none disabled:opacity-50 border-2 transition-all duration-200 shadow-sm ${
             isMyTurn
               ? 'border-red-500/60 focus:border-red-600 shadow-red-500/10'
