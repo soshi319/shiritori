@@ -12,12 +12,11 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   const [showDescription, setShowDescription] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
-
   useEffect(() => {
-    setShowDescription(false); // 一旦説明文を隠す
+    setShowDescription(false);
 
     const timer = setTimeout(() => {
-      setShowDescription(true); // 0.4秒後に説明文を表示する
+      setShowDescription(true);
     }, 400);
 
     return () => clearTimeout(timer);
@@ -42,9 +41,9 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
     const diff = touchStartX - touchEndX;
 
     if (diff > 50) {
-      goToNext(); // 左にスワイプ → 次のキャラ
+      goToNext();
     } else if (diff < -50) {
-      goToPrev(); // 右にスワイプ → 前のキャラ
+      goToPrev();
     }
 
     setTouchStartX(null);
@@ -53,8 +52,8 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   const selectedCharacter = characters[selectedIndex];
 
   return (
-    <div className="flex flex-col items-center gap-8 p-8 w-full">
-      <h1 className="text-3xl font-bold">キャラクター選択</h1>
+    <div className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto">
+      <h1 className="text-3xl font-extrabold tracking-normal text-stone-800">キャラクター選択</h1>
 
       <div
         className="relative w-full max-w-md overflow-hidden"
@@ -63,14 +62,14 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
       >
         <button
           onClick={goToPrev}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-3xl px-3 py-2 bg-gray-800/70 rounded-full hover:bg-gray-700"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-xl px-4 py-3 bg-white/80 border border-stone-200 text-stone-700 rounded-full hover:bg-white transition-colors shadow-sm"
         >
           ◀
         </button>
 
         <button
           onClick={goToNext}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 text-3xl px-3 py-2 bg-gray-800/70 rounded-full hover:bg-gray-700"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 text-xl px-4 py-3 bg-white/80 border border-stone-200 text-stone-700 rounded-full hover:bg-white transition-colors shadow-sm"
         >
           ▶
         </button>
@@ -88,11 +87,11 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
                 <img
                   src={`/images/${character.id}.png`}
                   alt={character.name}
-                  className="w-full h-full object-contain drop-shadow-xl" 
+                  className="w-full h-full object-contain drop-shadow-md" 
                 />
               </div>
-              <h2 className="text-2xl font-bold">{character.name}</h2>
-              <p className="text-sm text-gray-400">
+              <h2 className="text-2xl font-bold text-stone-800">{character.name}</h2>
+              <p className="text-sm text-stone-500">
                 {character.job} ／ {character.role}
               </p>
             </div>
@@ -101,13 +100,13 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
       </div>
 
       <div
-        className={`max-w-md text-center transition-opacity duration-500 ${
+        className={`max-w-md text-center transition-opacity duration-500 flex flex-col gap-1 ${
           showDescription ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <p className="text-sm text-gray-300 mb-2">{selectedCharacter.flavorText}</p>
-        <p className="text-sm">HP: {selectedCharacter.maxHp}</p>
-        <p className="text-sm text-indigo-300">
+        <p className="text-sm text-stone-600 mb-2">{selectedCharacter.flavorText}</p>
+        <p className="text-sm font-semibold text-stone-700">HP: {selectedCharacter.maxHp}</p>
+        <p className="text-sm font-medium text-stone-600">
           固有スキル「{selectedCharacter.skillName}」: {selectedCharacter.skillDescription}
         </p>
       </div>
@@ -117,7 +116,7 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
           onConfirmCharacter(selectedCharacter.id);
           changeScreen('game');
         }}
-        className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500"
+        className="px-6 py-3.5 rounded-xl text-sm font-semibold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-sm transition-all duration-200"
       >
         このキャラクターで対戦する
       </button>

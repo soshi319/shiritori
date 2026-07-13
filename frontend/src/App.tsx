@@ -14,7 +14,7 @@ function App() {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans flex items-center justify-center">
+    <div className="min-h-screen bg-stone-100 text-zinc-950 font-sans flex items-center justify-center">
       {currentScreen === 'title' && (
         <TitleView
           changeScreen={setCurrentScreen}

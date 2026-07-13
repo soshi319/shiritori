@@ -3,9 +3,10 @@ import { useState } from 'react';
 type WordInputFieldProps = {
   onSubmit: (word: string) => void;
   disabled?: boolean;
+  isMyTurn: boolean;
 };
 
-export function WordInputField({ onSubmit, disabled = false }: WordInputFieldProps) {
+export function WordInputField({ onSubmit, disabled = false, isMyTurn }: WordInputFieldProps) {
   const [word, setWord] = useState('');
 
   function handleSubmit() {
@@ -24,6 +25,14 @@ export function WordInputField({ onSubmit, disabled = false }: WordInputFieldPro
 
   return (
     <div className="w-full max-w-md flex flex-col gap-2">
+      <div className="text-center font-extrabold text-xs tracking-wider mb-0.5">
+        {isMyTurn ? (
+          <span className="text-red-700">⚔️ しりとりで攻撃 </span>
+        ) : (
+          <span className="text-blue-700 animate-pulse">🛡️ 言葉を予測して防御 </span>
+        )}
+      </div>
+
       <div className="flex gap-2">
         <input
           type="text"
@@ -31,25 +40,26 @@ export function WordInputField({ onSubmit, disabled = false }: WordInputFieldPro
           onChange={(e) => setWord(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="単語を入力..."
-          className="flex-1 px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+          placeholder={isMyTurn ? "「し」から始まる単語を入力..." : "相手が打つ単語を先読み予測..."}
+          className={`flex-1 px-4 py-3 rounded-xl bg-white text-zinc-900 placeholder-zinc-400 focus:outline-none disabled:opacity-50 border-2 transition-all duration-200 shadow-sm ${
+            isMyTurn
+              ? 'border-red-500/60 focus:border-red-600 shadow-red-500/10'
+              : 'border-sky-500/60 focus:border-sky-600 shadow-sky-500/10'
+          }`}
         />
 
         <button
           onClick={handleSubmit}
           disabled={disabled || word.trim().length === 0}
-          className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed"
+          className={`px-6 py-3 rounded-xl font-bold text-sm text-white transition-all duration-200 disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none shadow-sm ${
+            isMyTurn
+              ? 'bg-red-600 hover:bg-red-500'
+              : 'bg-sky-600 hover:bg-sky-500'
+          }`}
         >
-          送信
+          {isMyTurn ? '攻撃' : '予測'}
         </button>
       </div>
-
-      <p className="text-xs text-gray-400 text-right">
-        {word.length}文字
-        {word.length === 1 && (
-          <span className="text-red-400 font-bold ml-1">（最大威力！）</span>
-        )}
-      </p>
     </div>
   );
 }

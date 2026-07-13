@@ -223,9 +223,9 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
   if (status === 'WAITING') {
     return (
-      <div className="flex h-screen items-center justify-center flex-col gap-4">
-        <div className="animate-spin h-10 w-10 border-4 border-indigo-500 rounded-full border-t-transparent"></div>
-        <p>対戦相手を待っています...</p>
+      <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">
+        <div className="animate-spin h-10 w-10 border-4 border-zinc-600 rounded-full border-t-transparent"></div>
+        <p className="text-sm font-bold tracking-wide text-zinc-800">対戦相手を待っています...</p>
       </div>
     );
   }
@@ -279,70 +279,70 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           )}
         </div>
 
-        <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 ">
-          {/* 左側：自分（反転させる） */}
+        <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2">
           {myState && (
             <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
               <img
                 src={`/images/${myState.characterId}.png`}
                 alt="自分のキャラクター"
-                className="w-full h-full object-contain -scale-x-100 drop-shadow-xl"
+                className="w-full h-full object-contain -scale-x-100 drop-shadow-md"
               />
             </div>
           )}
 
-          {/* 右側：相手（そのまま左向き） */}
           {opponentState && (
             <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
               <img
                 src={`/images/${opponentState.characterId}.png`}
                 alt="相手のキャラクター"
-                className="w-full h-full object-contain drop-shadow-xl"
+                className="w-full h-full object-contain drop-shadow-md"
               />
             </div>
           )}
         </div>
 
         <div className="flex flex-col items-center gap-2">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-zinc-700 font-medium">
             {isMyTurn ? 'あなたのターン' : '相手のターン（反射の準備！）'}
           </p>
-          <p className="text-3xl font-bold text-indigo-400">「{currentWord}」</p>
+          <p className="text-4xl font-black text-zinc-900 tracking-wider">
+            「{currentWord}」
+          </p>
         </div>
 
         {!isGameOver && (
           <TurnTimer turnId={turnId} duration={turnDuration} onTimeUp={handleTimeUpDummy} />
         )}
 
-        <div className="w-full h-40 overflow-y-auto bg-gray-800 rounded-lg p-3 text-sm flex flex-col gap-1">
+        <div className="w-full h-40 overflow-y-auto bg-white/60 rounded-xl p-3 text-sm flex flex-col gap-1 border border-zinc-300/50 shadow-sm">
           {log.map((entry, index) => (
-            <p key={index} className={index === 0 ? 'text-white' : 'text-gray-500'}>{entry}</p>
+            <p key={index} className={index === 0 ? 'text-zinc-900 font-bold' : 'text-zinc-600'}>{entry}</p>
           ))}
         </div>
       </div>
 
-      <div className="sticky bottom-0 bg-gray-900 p-4">
+      <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40">
         {!isGameOver ? (
           <div className="flex flex-col w-full items-center">
             {inputError && (
-              <p className="text-red-400 text-sm font-bold animate-pulse mb-2">{inputError}</p>
+              <p className="text-red-700 text-sm font-bold mb-2">{inputError}</p>
             )}
 
             {isWaitingSync ? (
               <div className="flex flex-col items-center gap-2 py-4">
-                <div className="animate-spin h-6 w-6 border-4 border-indigo-500 rounded-full border-t-transparent"></div>
-                <p className="text-indigo-300 font-bold">相手の入力を待っています...</p>
+                <div className="animate-spin h-6 w-6 border-4 border-zinc-500 rounded-full border-t-zinc-700"></div>
+                <p className="text-zinc-700 font-semibold text-sm">相手の入力を待っています...</p>
               </div>
             ) : (
-              <WordInputField onSubmit={handleSubmitWord} disabled={false} />
+              <WordInputField onSubmit={handleSubmitWord} disabled={false} isMyTurn={isMyTurn ?? false} />
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 py-4">
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-2xl font-black text-zinc-900 tracking-wide">
               {myState?.id === winnerId ? '🎉 あなたの勝利！' : '💀 あなたの敗北...'}
             </h2>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-zinc-700 font-medium">
               決着の理由:{' '}
               {gameOverReason === 'hp_zero' ? 'HPが0になった' :
                gameOverReason === 'time_up' ? '時間切れ' :
@@ -351,7 +351,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
             </p>
             <button
               onClick={() => changeScreen('title')}
-              className="px-6 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500"
+              className="px-6 py-3 rounded-xl text-sm font-semibold tracking-wide bg-stone-800 hover:bg-stone-700 text-stone-100 transition-colors shadow-sm"
             >
               タイトルへ戻る
             </button>

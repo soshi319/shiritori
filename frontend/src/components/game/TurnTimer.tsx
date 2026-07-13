@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 
 type TurnTimerProps = {
-  turnId: number;       // ターンが変わるたびに違う値を渡してもらう（後で説明）
-  duration?: number;    // 制限時間（秒）。省略時は15秒
-  onTimeUp: () => void; // 時間切れになった時に親へ知らせる関数
+  turnId: number;
+  duration?: number;
+  onTimeUp: () => void;
 };
 
 export function TurnTimer({ turnId, duration = 15, onTimeUp }: TurnTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(duration);
 
   useEffect(() => {
-    setSecondsLeft(duration); // 新しいターンが始まったのでリセット
+    setSecondsLeft(duration);
 
     const intervalId = setInterval(() => {
       setSecondsLeft((prev) => {
@@ -30,18 +30,18 @@ export function TurnTimer({ turnId, duration = 15, onTimeUp }: TurnTimerProps) {
   const isUrgent = secondsLeft <= 5;
 
   return (
-    <div className="w-full max-w-xs">
-      <div className="flex justify-between mb-1 text-sm">
-        <span>残り時間</span>
-        <span className={isUrgent ? 'text-red-500 font-bold' : ''}>
+    <div className="w-full max-w-xs text-zinc-900">
+      <div className="flex justify-between mb-1 text-sm font-medium">
+        <span className="text-zinc-700">残り時間</span>
+        <span className={isUrgent ? 'text-red-600 font-bold animate-pulse' : 'font-semibold'}>
           {secondsLeft}秒
         </span>
       </div>
 
-      <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden border border-gray-600">
+      <div className="w-full h-3 bg-zinc-300 rounded-full overflow-hidden border border-zinc-400/60 shadow-inner">
         <div
           className={`h-full transition-all duration-1000 ease-linear ${
-            isUrgent ? 'bg-red-500' : 'bg-yellow-400'
+            isUrgent ? 'bg-red-500' : 'bg-amber-400'
           }`}
           style={{ width: `${percentage}%` }}
         />

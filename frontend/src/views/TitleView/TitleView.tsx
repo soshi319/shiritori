@@ -7,19 +7,21 @@ type TitleViewProps = {
 
 export function TitleView({ changeScreen, onOpenRules }: TitleViewProps) {
   return (
-    <div className="flex flex-col items-center justify-center gap-8">
-      <h1 className="text-4xl font-bold">しりとりバトル</h1>
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-8 bg-stone-100 transition-colors duration-500">
+      <h1 className="text-5xl font-extrabold tracking-normal text-stone-800">
+        しりとりバトル
+      </h1>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 w-full max-w-xs px-4">
         <button
-          className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500"
+          className="px-6 py-3.5 rounded-xl text-sm font-semibold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-sm transition-all duration-200"
           onClick={() => changeScreen('modeSelect')}
         >
           スタート
         </button>
 
         <button
-          className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm"
+          className="px-4 py-2.5 rounded-xl text-xs font-medium text-center bg-white text-stone-600 border border-stone-300/80 hover:bg-stone-50 shadow-sm transition-all duration-200"
           onClick={onOpenRules}
         >
           ルール説明
