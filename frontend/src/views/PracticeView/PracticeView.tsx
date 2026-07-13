@@ -115,7 +115,7 @@ export function PracticeView({ changeScreen }: PracticeViewProps) {
           onClick={startNewGame}
           className="text-sm text-stone-500 hover:text-stone-800 underline transition-colors"
         >
-          最初からやり換える
+          最初からやりなおす
         </button>
       </div>
 
