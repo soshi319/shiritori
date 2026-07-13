@@ -13,7 +13,7 @@ export function ModeSelectView({ changeScreen }: ModeSelectViewProps) {
         <div className="flex flex-row">
           <button
             className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-500"
-            onClick={() => changeScreen('characterSelect')}
+            onClick={() => changeScreen('practice')}
           >
             練習モード
           </button>
