@@ -4,10 +4,13 @@ import type {
   ServerMessage,
 } from "shared/types/messageTypes.ts";
 import { characters } from "shared/data/characters.ts";
-import { validateWord } from "shared/logic/shiritoriValidator.ts";
+import {
+  isKnownWord,
+  normalizeWordForComparison,
+  validateWord,
+} from "shared/logic/shiritoriValidator.ts";
 import { resolveTurn } from "../game/turnResolver.ts";
 import { GAME_CONFIG } from "shared/config/gameConfig.ts";
-import { normalizeWordForComparison } from "shared/logic/shiritoriValidator.ts";
 
 type Client = {
   socket: WebSocket;
@@ -29,6 +32,7 @@ export class GameRoom {
     public roomId: string,
     p1: { socket: WebSocket; name: string; characterId: string },
     p2: { socket: WebSocket; name: string; characterId: string },
+    private dictionary: Set<string>,
     private onRoomClose: () => void,
   ) {
     this.addClient(crypto.randomUUID(), p1);
@@ -118,12 +122,11 @@ export class GameRoom {
         turnId: this.turnId,
         activePlayerId: this.activePlayerId,
         previousWord: this.currentWord,
-        duration: GAME_CONFIG.TURN_DURATION_SEC, // 設定ファイルから時間を取得
+        duration: GAME_CONFIG.TURN_DURATION_SEC,
       },
     });
 
     if (this.timer) clearTimeout(this.timer);
-    // 設定ファイルの秒数（ミリ秒換算）でタイマーをセット
     this.timer = setTimeout(
       () => this.handleTimeUp(),
       GAME_CONFIG.TURN_DURATION_SEC * 1000,
@@ -136,7 +139,26 @@ export class GameRoom {
 
     const word = message.payload.word;
 
+    // 攻撃側（アクティブプレイヤー）の単語だけ、送信直後に辞書チェックする
     if (senderId === this.activePlayerId) {
+      const hasDictionary = this.dictionary.size > 0;
+
+      if (hasDictionary && !isKnownWord(word, this.dictionary)) {
+        this.clients.get(senderId)!.socket.send(
+          JSON.stringify(
+            {
+              type: "WORD_REJECTED",
+              payload: {
+                word,
+                message:
+                  `「${word}」は辞書に見つかりませんでした。別の単語を入力してください。`,
+              },
+            } satisfies ServerMessage,
+          ),
+        );
+        return;
+      }
+
       this.activeWord = word;
     } else {
       this.predictedWord = word;
@@ -161,18 +183,15 @@ export class GameRoom {
       c.state.id !== this.activePlayerId
     )!;
 
-    // 連続時間切れ回数を+1
     const timeoutCount =
       (this.consecutiveTimeouts.get(this.activePlayerId) ?? 0) + 1;
     this.consecutiveTimeouts.set(this.activePlayerId, timeoutCount);
 
     if (timeoutCount >= 2) {
-      // 2回連続で時間切れ → 敗北
       this.endGame(opponent.state.id, "time_up");
       return;
     }
 
-    // 1回目の時間切れ → パスとして続行
     this.broadcastTurnResult(
       "",
       false,
@@ -208,10 +227,7 @@ export class GameRoom {
     );
 
     if (!valResult.isValid) {
-      const isNounFailure = valResult.errorMessage?.includes("ん") ?? false;
-
-      if (isNounFailure) {
-        // 「ん」で終わり、ばくだん条件も満たさなかった場合のみ、即敗北
+      if (valResult.failureReason === "nounEnding") {
         this.broadcastTurnResult(
           this.activeWord!,
           false,
@@ -224,7 +240,6 @@ export class GameRoom {
         return;
       }
 
-      // それ以外（使用済み単語・未接続など）はパス扱い。ゲームは続行する
       this.broadcastTurnResult(
         this.activeWord!,
         false,

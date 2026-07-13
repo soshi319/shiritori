@@ -125,6 +125,11 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           break;
         }
 
+        case 'WORD_REJECTED': {
+          setInputError(msg.payload.message);
+          break;
+        }
+
         case 'TURN_RESULT': {
           // refを経由して「今の本当の最新値」を読む（stale closure対策）
           const prevMyCombo = myStateRef.current?.comboCount ?? 0;
@@ -162,7 +167,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
           if (newlyPoisoned) {
             setPoisonBurst((prev) => prev + 1);
-            setLog((prev) => ['毒を受けた！体が紫色に染まっていく…', ...prev]);
+            setLog((prev) => ['毒を受けた…', ...prev]);
           }
 
           if (msg.payload.poisonDamage && msg.payload.poisonDamage.myDamage > 0) {

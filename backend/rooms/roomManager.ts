@@ -10,10 +10,12 @@ type WaitingPlayer = {
 export class RoomManager {
   private waitingPlayer: WaitingPlayer | null = null;
   private activeRooms: Map<string, GameRoom> = new Map();
+  private dictionary: Set<string> = new Set();
 
-  /**
-   * 新しいWebSocket接続を受け取る
-   */
+  public setDictionary(dictionary: Set<string>) {
+    this.dictionary = dictionary;
+  }
+
   public handleConnection(socket: WebSocket) {
     socket.onmessage = (event) => {
       try {
@@ -39,32 +41,20 @@ export class RoomManager {
     };
   }
 
-  /**
-   * マッチング処理
-   */
   private handleJoinRoom(socket: WebSocket, name: string, characterId: string) {
     if (this.waitingPlayer) {
-      // 既に待っている人がいればマッチング成立
       const p1 = this.waitingPlayer;
       const p2 = { socket, name, characterId };
-
-      // 待機列をリセット
       this.waitingPlayer = null;
 
-      // ユニークなルームIDを生成して部屋を作成
       const roomId = crypto.randomUUID();
-
-      // 部屋が終了した時にMapから削除するコールバックを渡す
-      const gameRoom = new GameRoom(roomId, p1, p2, () => {
+      const gameRoom = new GameRoom(roomId, p1, p2, this.dictionary, () => {
         this.activeRooms.delete(roomId);
       });
 
       this.activeRooms.set(roomId, gameRoom);
-
-      // 試合開始
       gameRoom.start();
     } else {
-      // 誰もいなければ待機列に入る
       this.waitingPlayer = { socket, name, characterId };
     }
   }

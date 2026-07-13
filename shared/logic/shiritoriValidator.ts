@@ -1,14 +1,16 @@
 const DAKUTEN_REGEX =
   /[がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴ]/;
 
+export type FailureReason = "usedWord" | "notConnected" | "nounEnding" | null;
+
 export type ValidationResult = {
   isValid: boolean;
   errorMessage: string | null;
   isBakudan: boolean;
   triggersPoison: boolean;
+  failureReason: FailureReason;
 };
 
-// カタカナをひらがなに変換する
 export function katakanaToHiragana(char: string): string {
   const code = char.charCodeAt(0);
   if (code >= 0x30a1 && code <= 0x30f6) {
@@ -17,9 +19,13 @@ export function katakanaToHiragana(char: string): string {
   return char;
 }
 
-// 単語全体をひらがなに統一する（比較用）
 export function normalizeWordForComparison(word: string): string {
   return Array.from(word).map(katakanaToHiragana).join("");
+}
+
+// 【追加】辞書に実在する単語かどうかだけを調べる、単体の関数
+export function isKnownWord(word: string, dictionary: Set<string>): boolean {
+  return dictionary.has(normalizeWordForComparison(word));
 }
 
 const YOUON_SET = new Set(["ゃ", "ゅ", "ょ"]);
@@ -33,13 +39,6 @@ const SMALL_TO_BIG: Record<string, string> = {
   "っ": "つ",
 };
 
-/**
- * 公式ルール（第4条）に基づき、「次の単語が始まるべき文字列」を返す
- * ・拗音（しゃ等）で終わる場合 → その2文字をそのまま返す（例:「しゃ」）
- * ・長音「ー」で終わる場合 → 直前の文字を見る
- * ・「ぢ」「づ」で終わる場合 → 「じ」「ず」に変換
- * ・それ以外 → 末尾の1文字（濁点はそのまま維持する）
- */
 export function getRequiredNextStart(word: string): string {
   const hiraWord = normalizeWordForComparison(word);
   if (hiraWord.length === 0) return "";
@@ -47,23 +46,19 @@ export function getRequiredNextStart(word: string): string {
   let target = hiraWord;
   let lastChar = target.slice(-1);
 
-  // 長音「ー」→ 直前の文字を見る
   if (lastChar === "ー" && target.length > 1) {
     target = target.slice(0, -1);
     lastChar = target.slice(-1);
   }
 
-  // 拗音（ゃゅょ）→ 直前の文字と合わせた2文字をそのまま使う
   if (YOUON_SET.has(lastChar) && target.length > 1) {
     return target.slice(-2);
   }
 
-  // 「ぢ」「づ」→「じ」「ず」に変換
   if (DAKU_CONVERT[lastChar]) {
     return DAKU_CONVERT[lastChar];
   }
 
-  // 小さい「っ」「ぁぃぅぇぉ」→ 対応する大きい文字に変換（公式ルールに明記はないが慣例として維持）
   if (SMALL_TO_BIG[lastChar]) {
     return SMALL_TO_BIG[lastChar];
   }
@@ -71,6 +66,7 @@ export function getRequiredNextStart(word: string): string {
   return lastChar;
 }
 
+// 【変更】dictionary関連の引数・処理を削除（役目を終えたため）
 export function validateWord(
   word: string,
   previousWord: string,
@@ -84,6 +80,7 @@ export function validateWord(
       errorMessage: `「${word}」は既に使用されています`,
       isBakudan: false,
       triggersPoison: false,
+      failureReason: "usedWord",
     };
   }
 
@@ -97,6 +94,7 @@ export function validateWord(
         errorMessage: `「${requiredStart}」から始まっていません`,
         isBakudan: false,
         triggersPoison: false,
+        failureReason: "notConnected",
       };
     }
   }
@@ -111,6 +109,7 @@ export function validateWord(
         errorMessage: "「ん」がつきました（即死）",
         isBakudan: false,
         triggersPoison: false,
+        failureReason: "nounEnding",
       };
     }
   }
@@ -125,5 +124,6 @@ export function validateWord(
     errorMessage: null,
     isBakudan,
     triggersPoison,
+    failureReason: null,
   };
 }

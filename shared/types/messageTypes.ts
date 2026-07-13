@@ -92,9 +92,18 @@ export type GameOverMessage = {
   };
 };
 
+export type WordRejectedMessage = {
+  type: "WORD_REJECTED";
+  payload: {
+    word: string;
+    message: string;
+  };
+};
+
 export type ServerMessage =
   | MatchedMessage
   | TurnStartMessage
   | WaitOpponentMessage
   | TurnResultMessage
+  | WordRejectedMessage
   | GameOverMessage;
