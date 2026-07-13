@@ -84,8 +84,12 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
               key={character.id}
               className="w-full flex-shrink-0 flex flex-col items-center gap-4 px-12"
             >
-              <div className="w-40 h-40 rounded-full bg-indigo-800 flex items-center justify-center text-5xl font-bold">
-                {character.name.charAt(0)}
+              <div className="w-56 h-56 flex items-center justify-center">
+                <img
+                  src={`/images/${character.id}.png`}
+                  alt={character.name}
+                  className="w-full h-full object-contain drop-shadow-xl" 
+                />
               </div>
               <h2 className="text-2xl font-bold">{character.name}</h2>
               <p className="text-sm text-gray-400">

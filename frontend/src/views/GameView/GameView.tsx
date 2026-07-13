@@ -279,6 +279,30 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           )}
         </div>
 
+        <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 ">
+          {/* 左側：自分（反転させる） */}
+          {myState && (
+            <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+              <img
+                src={`/images/${myState.characterId}.png`}
+                alt="自分のキャラクター"
+                className="w-full h-full object-contain -scale-x-100 drop-shadow-xl"
+              />
+            </div>
+          )}
+
+          {/* 右側：相手（そのまま左向き） */}
+          {opponentState && (
+            <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center">
+              <img
+                src={`/images/${opponentState.characterId}.png`}
+                alt="相手のキャラクター"
+                className="w-full h-full object-contain drop-shadow-xl"
+              />
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col items-center gap-2">
           <p className="text-sm text-gray-400">
             {isMyTurn ? 'あなたのターン' : '相手のターン（反射の準備！）'}

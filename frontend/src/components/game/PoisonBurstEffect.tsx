@@ -1,24 +1,22 @@
-export function PoisonBurstEffect() {
-  const bubbles = Array.from({ length: 8 });
-
+export const PoisonBurstEffect = () => {
   return (
-    <div className="fixed inset-0 z-40 pointer-events-none overflow-hidden">
-      {/* 画面全体が一瞬紫に染まるフラッシュ */}
-      <div className="absolute inset-0 bg-purple-700/30 animate-poisonFlash" />
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* 画面全体をじわっと紫にする背景 */}
+      <div className="absolute inset-0 bg-purple-500 mix-blend-multiply animate-poisonFade" />
 
-      {/* 立ちのぼる泡 */}
-      {bubbles.map((_, i) => (
-        <span
-          key={i}
-          className="absolute bottom-0 rounded-full bg-purple-400/70 animate-poisonBubble"
-          style={{
-            left: `${10 + i * 11}%`,
-            width: `${8 + (i % 3) * 6}px`,
-            height: `${8 + (i % 3) * 6}px`,
-            animationDelay: `${i * 0.08}s`,
-          }}
-        />
-      ))}
+      {/* 湧き上がる泡（複数用意して位置と遅延をズラす） */}
+      <div 
+        className="absolute bottom-10 left-[20%] w-8 h-8 bg-purple-400 rounded-full opacity-0 animate-poisonBubble"
+        style={{ animationDelay: '0s' }}
+      />
+      <div 
+        className="absolute bottom-10 left-[50%] w-12 h-12 bg-purple-500 rounded-full opacity-0 animate-poisonBubble"
+        style={{ animationDelay: '0.3s' }}
+      />
+      <div 
+        className="absolute bottom-10 left-[80%] w-6 h-6 bg-purple-300 rounded-full opacity-0 animate-poisonBubble"
+        style={{ animationDelay: '0.6s' }}
+      />
     </div>
   );
-}
+};

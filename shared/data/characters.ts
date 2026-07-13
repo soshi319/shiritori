@@ -18,6 +18,7 @@ export type Character = {
   skillDescription: string;
   skillType: SkillType;
   flavorText: string;
+  imageUrl: string;
 };
 
 // フロントエンドの data/characters.ts と全く同じデータを定義します
@@ -36,6 +37,7 @@ export const characters: Character[] = [
     skillType: "shortWordBoost",
     flavorText:
       "剣を振るう。「短い文字が高火力」というゲームのコアシステムを最も体現する、特大ダメージ狙いのロマン砲。",
+    imageUrl: "/images/A.png",
   },
   {
     id: "B",
@@ -51,6 +53,7 @@ export const characters: Character[] = [
     skillType: "counterReduction",
     flavorText:
       "巨大な盾で攻撃をいなす鉄壁の守り。心理戦の手痛いカウンターのリスクを軽減し、最も安定した立ち回りができる。",
+    imageUrl: "/images/B.png",
   },
   {
     id: "C",
@@ -66,6 +69,7 @@ export const characters: Character[] = [
     skillType: "comboBoost",
     flavorText:
       "リズムに乗って言葉を紡ぐほど本領を発揮する、テンポ重視のコンボアタッカー。",
+    imageUrl: "/images/C.png",
   },
   {
     id: "D",
@@ -81,5 +85,6 @@ export const characters: Character[] = [
     skillType: "poisonOnDakuten",
     flavorText:
       "濁点・半濁点を含む言葉を探す、パズル的思考が求められるテクニカルなキャラクター。",
+    imageUrl: "/images/D.png",
   },
 ];
