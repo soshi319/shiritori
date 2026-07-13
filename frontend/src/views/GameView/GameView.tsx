@@ -90,7 +90,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:8000');
+    const socket = new WebSocket("wss://shiritori.soshi319.deno.net/");
 
     socket.onopen = () => {
       setStatus('WAITING');

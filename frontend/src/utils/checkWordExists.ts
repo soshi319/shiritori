@@ -1,7 +1,7 @@
 export async function checkWordExists(word: string): Promise<boolean> {
     try {
         const response = await fetch(
-            `http://localhost:8000/api/check-word?word=${
+            `https://shiritori.soshi319.deno.net/api/check-word?word=${
                 encodeURIComponent(word)
             }`,
         );
