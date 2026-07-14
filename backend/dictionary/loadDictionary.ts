@@ -5,7 +5,7 @@ type JMdictKana = {
 };
 
 type JMdictSense = {
-  misc: string[]; // 例: ["arch"], ["obs"], [] など
+  misc: string[];
 };
 
 type JMdictWord = {
@@ -19,28 +19,49 @@ type JMdictFile = {
 
 let cachedDictionary: Set<string> | null = null;
 
-// 古語・廃語・希少語を示すタグ
 const RARE_TAGS = new Set(["arch", "obs", "obsc", "rare"]);
 
-/**
- * その単語の「すべての意味」が、古語・廃語・希少語タグのみで構成されているかを判定する。
- * 1つでも通常の意味（タグ無し、または上記以外のタグ）があれば false（＝除外しない）を返す。
- */
+// 【追加】辞書ファイルの配布元URL（jmdict-simplifiedのリリースページから確認したURLに差し替えてください）
+const DICTIONARY_URL =
+  "https://github.com/scriptin/jmdict-simplified/releases/download/3.6.1+20250203122839/jmdict-eng-3.6.1+20250203122839.json";
+
 function isObscureWord(word: JMdictWord): boolean {
   if (word.sense.length === 0) return false;
 
   return word.sense.every((sense) => {
-    if (sense.misc.length === 0) return false; // タグが無い意味がある = 普通に使われる
+    if (sense.misc.length === 0) return false;
     return sense.misc.every((tag) => RARE_TAGS.has(tag));
   });
+}
+
+// 【追加】ファイルが存在しなければ、ダウンロードしてくる
+async function ensureDictionaryFile(filePath: URL): Promise<void> {
+  try {
+    await Deno.stat(filePath);
+    console.log("辞書ファイルは既に存在します。ダウンロードをスキップします。");
+    return;
+  } catch {
+    console.log("辞書ファイルが見つからないため、ダウンロードします...");
+  }
+
+  const response = await fetch(DICTIONARY_URL);
+  if (!response.ok) {
+    throw new Error(`辞書のダウンロードに失敗しました: ${response.status}`);
+  }
+
+  const data = await response.text();
+  await Deno.writeTextFile(filePath, data);
+  console.log("辞書ファイルのダウンロードが完了しました。");
 }
 
 export async function loadDictionary(): Promise<Set<string>> {
   if (cachedDictionary) return cachedDictionary;
 
-  console.log("辞書を読み込んでいます...");
-
   const filePath = new URL("../data/jmdict-eng.json", import.meta.url);
+
+  await ensureDictionaryFile(filePath);
+
+  console.log("辞書を読み込んでいます...");
   const raw = await Deno.readTextFile(filePath);
   const data = JSON.parse(raw) as JMdictFile;
 
@@ -50,7 +71,7 @@ export async function loadDictionary(): Promise<Set<string>> {
   for (const word of data.words) {
     if (isObscureWord(word)) {
       excludedCount++;
-      continue; // 古語・廃語・希少語のみの単語は辞書に含めない
+      continue;
     }
 
     for (const kana of word.kana) {

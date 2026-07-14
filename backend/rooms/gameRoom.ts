@@ -79,6 +79,13 @@ export class GameRoom {
     const playerIds = Array.from(this.clients.keys());
     this.activePlayerId = playerIds[Math.random() < 0.5 ? 0 : 1];
 
+    for (const playerId of playerIds) {
+      if (playerId !== this.activePlayerId) {
+        const client = this.clients.get(playerId)!;
+        client.state.hp += GAME_CONFIG.SECOND_TURN_HP_BONUS;
+      }
+    }
+
     const me1 = this.clients.get(playerIds[0])!.state;
     const me2 = this.clients.get(playerIds[1])!.state;
 
