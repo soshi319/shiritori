@@ -117,7 +117,8 @@ npm run dev
 cd backend
 deno task dev
 ```
-
+バックエンドは起動時にJMdict辞書データ（backend/data/jmdict-eng-common.json）を読み込むため、別途ダウンロードして配置する必要があります。
+詳細は backend/dictionary/loadDictionary.ts を参照してください。
 
 ## 今後の課題
 
