@@ -40,7 +40,7 @@ export async function loadDictionary(): Promise<Set<string>> {
 
   console.log("辞書を読み込んでいます...");
 
-  const filePath = new URL("../data/jmdict-eng-common.json", import.meta.url);
+  const filePath = new URL("../data/jmdict-eng.json", import.meta.url);
   const raw = await Deno.readTextFile(filePath);
   const data = JSON.parse(raw) as JMdictFile;
 
