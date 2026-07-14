@@ -122,9 +122,13 @@ export function GameView({ changeScreen, myCharacterId, isCpuMode }: GameViewPro
     return () => clearTimeout(timer);
   }, [effect]);
 
-  // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
+
   useEffect(() => {
-    const socket = new WebSocket(import.meta.env.VITE_WS_URL);
+    const wsUrl = import.meta.env.DEV
+      ? "ws://localhost:8000"
+      : "wss://shiritori.soshi319.deno.net";
+
+    const socket = new WebSocket(wsUrl);
     let pingInterval: number;
 
     socket.onopen = () => {
