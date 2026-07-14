@@ -20,9 +20,10 @@ const handleTimeUpDummy = () => {};
 type GameViewProps = {
   changeScreen: (screen: Screen) => void;
   myCharacterId: string;
+  isCpuMode: boolean;
 };
 
-export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
+export function GameView({ changeScreen, myCharacterId, isCpuMode }: GameViewProps) {
   const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
   const statusRef = useRef(status);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -124,18 +125,27 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
     const socket = new WebSocket(import.meta.env.VITE_WS_URL);
+    let pingInterval: number;
 
     socket.onopen = () => {
       setStatus('WAITING');
       const joinMsg: ClientMessage = {
         type: 'JOIN_ROOM',
-        payload: { playerName: 'プレイヤー', characterId: myCharacterId },
+        payload: { playerName: 'プレイヤー', characterId: myCharacterId, isCpuMode: isCpuMode},
       };
       socket.send(JSON.stringify(joinMsg));
+
+      // ★【追加】15秒ごとにPINGを送信してDeno Deployのタイムアウトを防ぐ
+      pingInterval = window.setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'PING' }));
+        }
+      }, 15000);
     };
 
     socket.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerMessage;
+      if(msg.type===('PONG' as any)) return;
 
       switch (msg.type) {
         case 'MATCHED': {
@@ -280,7 +290,10 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
     };
 
     setWs(socket);
-    return () => socket.close();
+    return () => {
+      clearInterval(pingInterval);
+      socket.close();
+    };
   }, [myCharacterId]);
 
   function handleSubmitWord(word: string) {

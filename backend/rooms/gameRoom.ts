@@ -5,6 +5,7 @@ import type {
 } from "shared/types/messageTypes.ts";
 import { characters } from "shared/data/characters.ts";
 import {
+  getRequiredNextStart, // ★CPUの思考用にインポートを追加
   isKnownWord,
   normalizeWordForComparison,
   validateWord,
@@ -28,17 +29,34 @@ export class GameRoom {
   private predictedWord: string | null = null;
   private consecutiveTimeouts: Map<string, number> = new Map();
 
+  // ★CPUモード用のプロパティを追加
+  private isCpuMode = false;
+  private cpuId: string | null = null;
+  private cpuTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     public roomId: string,
     p1: { socket: WebSocket; name: string; characterId: string },
     p2: { socket: WebSocket; name: string; characterId: string },
     private dictionary: Set<string>,
     private onRoomClose: () => void,
+    isCpuMode = false, // ★引数の最後に CPUフラグ を追加（デフォルトは false）
   ) {
-    this.addClient(crypto.randomUUID(), p1);
-    this.addClient(crypto.randomUUID(), p2);
+    this.isCpuMode = isCpuMode;
+    const id1 = crypto.randomUUID();
+    const id2 = crypto.randomUUID();
+
+    this.addClient(id1, p1);
+    this.addClient(id2, p2);
+
+    if (this.isCpuMode) {
+      this.cpuId = id2; // 2人目のプレイヤーをCPUとして指定
+    }
 
     for (const [id, client] of this.clients.entries()) {
+      // CPUプレイヤーの場合は実体のソケットがないため、イベント登録をスキップ
+      if (this.isCpuMode && id === this.cpuId) continue;
+
       client.socket.onmessage = (e) => this.handleMessage(id, e.data);
       client.socket.onclose = () => this.handleDisconnect(id);
     }
@@ -66,10 +84,20 @@ export class GameRoom {
     this.consecutiveTimeouts.set(id, 0);
   }
 
+  // ★特定のクライアントに安全にメッセージを送るヘルパー関数を追加
+  private sendToClient(id: string, message: ServerMessage) {
+    const client = this.clients.get(id);
+    if (
+      client && client.socket && client.socket.readyState === WebSocket.OPEN
+    ) {
+      client.socket.send(JSON.stringify(message));
+    }
+  }
+
   private broadcast(message: ServerMessage) {
     const data = JSON.stringify(message);
     for (const client of this.clients.values()) {
-      if (client.socket.readyState === WebSocket.OPEN) {
+      if (client.socket && client.socket.readyState === WebSocket.OPEN) {
         client.socket.send(data);
       }
     }
@@ -89,31 +117,28 @@ export class GameRoom {
     const me1 = this.clients.get(playerIds[0])!.state;
     const me2 = this.clients.get(playerIds[1])!.state;
 
-    this.clients.get(playerIds[0])!.socket.send(JSON.stringify(
-      {
-        type: "MATCHED",
-        payload: {
-          roomId: this.roomId,
-          me: me1,
-          opponent: me2,
-          initialWord: this.currentWord,
-          firstPlayerId: this.activePlayerId,
-        },
-      } satisfies ServerMessage,
-    ));
+    // 安全な個別のメッセージ送信に変更
+    this.sendToClient(playerIds[0], {
+      type: "MATCHED",
+      payload: {
+        roomId: this.roomId,
+        me: me1,
+        opponent: me2,
+        initialWord: this.currentWord,
+        firstPlayerId: this.activePlayerId,
+      },
+    });
 
-    this.clients.get(playerIds[1])!.socket.send(JSON.stringify(
-      {
-        type: "MATCHED",
-        payload: {
-          roomId: this.roomId,
-          me: me2,
-          opponent: me1,
-          initialWord: this.currentWord,
-          firstPlayerId: this.activePlayerId,
-        },
-      } satisfies ServerMessage,
-    ));
+    this.sendToClient(playerIds[1], {
+      type: "MATCHED",
+      payload: {
+        roomId: this.roomId,
+        me: me2,
+        opponent: me1,
+        initialWord: this.currentWord,
+        firstPlayerId: this.activePlayerId,
+      },
+    });
 
     this.startTurn();
   }
@@ -122,6 +147,8 @@ export class GameRoom {
     this.turnId++;
     this.activeWord = null;
     this.predictedWord = null;
+
+    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUのタイマーをクリア
 
     this.broadcast({
       type: "TURN_START",
@@ -138,6 +165,50 @@ export class GameRoom {
       () => this.handleTimeUp(),
       GAME_CONFIG.TURN_DURATION_SEC * 1000,
     );
+
+    // ★CPUモードかつ、現在CPUのターン（攻撃側）であれば思考ロジックを起動
+    if (this.isCpuMode && this.activePlayerId === this.cpuId) {
+      this.handleCpuAttack();
+    }
+  }
+
+  // ★CPUの攻撃（思考）ロジックを追加
+  private handleCpuAttack() {
+    const requiredStart = getRequiredNextStart(this.currentWord);
+    const candidates: string[] = [];
+
+    // 読み込まれている辞書から、繋がる言葉を検索して候補に入れる
+    for (const word of this.dictionary) {
+      if (word.startsWith(requiredStart) && !this.usedWords.has(word)) {
+        // 「ん」で終わる言葉はCPUの自滅になってしまうため除外
+        if (!word.endsWith("ん")) {
+          candidates.push(word);
+        }
+      }
+    }
+
+    // 候補があればランダムに選択、無ければ空文字（パス）
+    const chosenWord = candidates.length > 0
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : "";
+
+    // 人間が入力しているかのように見せるため、1.5秒〜3秒のランダムな遅延を挟む
+    const thinkDelay = 1500 + Math.random() * 1500;
+
+    this.cpuTimer = setTimeout(() => {
+      if (!chosenWord) {
+        this.handleTimeUp(); // 繋がる単語が辞書になければ時間切れ処理へ
+        return;
+      }
+
+      this.activeWord = chosenWord;
+
+      // もしプレイヤー（防御側）がすでに予測入力を終えていれば、その場で即ターン解決
+      if (this.predictedWord !== null) {
+        this.resolveCurrentTurn();
+      }
+      // プレイヤーがまだ入力していなければ、プレイヤー側の入力（またはタイムアップ）を待つ
+    }, thinkDelay);
   }
 
   private handleMessage(senderId: string, data: string) {
@@ -151,29 +222,30 @@ export class GameRoom {
       const hasDictionary = this.dictionary.size > 0;
 
       if (hasDictionary && !isKnownWord(word, this.dictionary)) {
-        this.clients.get(senderId)!.socket.send(
-          JSON.stringify(
-            {
-              type: "WORD_REJECTED",
-              payload: {
-                word,
-                message:
-                  `「${word}」は辞書に見つかりませんでした。別の単語を入力してください。`,
-              },
-            } satisfies ServerMessage,
-          ),
-        );
+        this.sendToClient(senderId, {
+          type: "WORD_REJECTED",
+          payload: {
+            word,
+            message:
+              `「${word}」は辞書に見つかりませんでした。別の単語を入力してください。`,
+          },
+        });
         return;
       }
 
       this.activeWord = word;
+
+      // ★CPUモードでプレイヤーが攻撃した時、CPU（防御側）はカウンター（反射）をしないためダミー予測を入れて即解決
+      if (this.isCpuMode) {
+        this.predictedWord = "CPU_NO_COUNTER_PREDICTION"; // 絶対に一致しない文字列
+        this.resolveCurrentTurn();
+        return;
+      }
     } else {
       this.predictedWord = word;
     }
 
-    this.clients.get(senderId)!.socket.send(
-      JSON.stringify({ type: "WAIT_OPPONENT" } satisfies ServerMessage),
-    );
+    this.sendToClient(senderId, { type: "WAIT_OPPONENT" });
 
     if (this.activeWord && this.predictedWord) {
       this.resolveCurrentTurn();
@@ -214,6 +286,7 @@ export class GameRoom {
 
   private resolveCurrentTurn() {
     if (this.timer) clearTimeout(this.timer);
+    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUの思考タイマーもクリア
 
     const isReflected = this.predictedWord !== null &&
       this.activeWord !== null &&
@@ -305,6 +378,11 @@ export class GameRoom {
 
   private handleDisconnect(disconnectedId: string) {
     if (this.timer) clearTimeout(this.timer);
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
+
+    // CPU戦の場合、CPUが切断することはないのでプレイヤーの切断のみをハンドリング
+    if (this.isCpuMode && disconnectedId === this.cpuId) return;
+
     const opponent = Array.from(this.clients.values()).find((c) =>
       c.state.id !== disconnectedId
     );
@@ -325,42 +403,36 @@ export class GameRoom {
     const me1 = this.clients.get(playerIds[0])!.state;
     const me2 = this.clients.get(playerIds[1])!.state;
 
-    this.clients.get(playerIds[0])!.socket.send(
-      JSON.stringify(
-        {
-          type: "TURN_RESULT",
-          payload: {
-            turnId: this.turnId,
-            word,
-            isValid,
-            isBakudan,
-            effect,
-            poisonDamage,
-            myState: me1,
-            opponentState: me2,
-            errorMessage,
-          },
-        } satisfies ServerMessage,
-      ),
-    );
-    this.clients.get(playerIds[1])!.socket.send(
-      JSON.stringify(
-        {
-          type: "TURN_RESULT",
-          payload: {
-            turnId: this.turnId,
-            word,
-            isValid,
-            isBakudan,
-            effect,
-            poisonDamage,
-            myState: me2,
-            opponentState: me1,
-            errorMessage,
-          },
-        } satisfies ServerMessage,
-      ),
-    );
+    // 安全な個別送信ヘルパー経由でリザルトを送信
+    this.sendToClient(playerIds[0], {
+      type: "TURN_RESULT",
+      payload: {
+        turnId: this.turnId,
+        word,
+        isValid,
+        isBakudan,
+        effect,
+        poisonDamage,
+        myState: me1,
+        opponentState: me2,
+        errorMessage,
+      },
+    });
+
+    this.sendToClient(playerIds[1], {
+      type: "TURN_RESULT",
+      payload: {
+        turnId: this.turnId,
+        word,
+        isValid,
+        isBakudan,
+        effect,
+        poisonDamage,
+        myState: me2,
+        opponentState: me1,
+        errorMessage,
+      },
+    });
   }
 
   private endGame(
@@ -368,6 +440,7 @@ export class GameRoom {
     reason: "hp_zero" | "time_up" | "bakudan_failed" | "poison" | "disconnect",
   ) {
     if (this.timer) clearTimeout(this.timer);
+    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUタイマーのクリア漏れ防止
     this.broadcast({ type: "GAME_OVER", payload: { winnerId, reason } });
     this.onRoomClose();
   }

@@ -19,13 +19,20 @@ export class RoomManager {
   public handleConnection(socket: WebSocket) {
     socket.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data) as ClientMessage;
+        // payload 内の isCpuMode フラグを許容するため、一時的に any でパースします
+        const message = JSON.parse(event.data) as any;
+
+        if (message.type === "PING") {
+          socket.send(JSON.stringify({ type: "PONG" }));
+          return;
+        }
 
         if (message.type === "JOIN_ROOM") {
           this.handleJoinRoom(
             socket,
             message.payload.playerName,
             message.payload.characterId,
+            !!message.payload.isCpuMode, // CPU戦フラグを boolean として抽出
           );
         }
       } catch (error) {
@@ -41,16 +48,61 @@ export class RoomManager {
     };
   }
 
-  private handleJoinRoom(socket: WebSocket, name: string, characterId: string) {
+  private handleJoinRoom(
+    socket: WebSocket,
+    name: string,
+    characterId: string,
+    isCpuMode: boolean,
+  ) {
+    // 【追加】CPU対戦モードの場合：他のプレイヤーを待たずに即座に専用の部屋を作成
+    if (isCpuMode) {
+      const roomId = crypto.randomUUID();
+      const p1 = { socket, name, characterId };
+
+      // CPUのキャラクターをランダムに選出 (A:アレス, B:バステト, C:チヨ, D:ドロシー)
+      const cpuChars = ["A", "B", "C", "D"];
+      const randomChar = cpuChars[Math.floor(Math.random() * cpuChars.length)];
+
+      const p2 = {
+        socket: {} as WebSocket, // ダミーの空オブジェクトを渡す（gameRoom側で安全に送信をスキップします）
+        name: "CPU (敵)",
+        characterId: randomChar,
+      };
+
+      // 第6引数に true を渡して GameRoom を作成
+      const gameRoom = new GameRoom(
+        roomId,
+        p1,
+        p2,
+        this.dictionary,
+        () => {
+          this.activeRooms.delete(roomId);
+        },
+        true, // isCpuMode = true
+      );
+
+      this.activeRooms.set(roomId, gameRoom);
+      gameRoom.start();
+      return;
+    }
+
+    // 通常のオンライン対戦モード（既存のマッチングロジック）
     if (this.waitingPlayer) {
       const p1 = this.waitingPlayer;
       const p2 = { socket, name, characterId };
       this.waitingPlayer = null;
 
       const roomId = crypto.randomUUID();
-      const gameRoom = new GameRoom(roomId, p1, p2, this.dictionary, () => {
-        this.activeRooms.delete(roomId);
-      });
+      const gameRoom = new GameRoom(
+        roomId,
+        p1,
+        p2,
+        this.dictionary,
+        () => {
+          this.activeRooms.delete(roomId);
+        },
+        false, // isCpuMode = false
+      );
 
       this.activeRooms.set(roomId, gameRoom);
       gameRoom.start();
@@ -60,5 +112,4 @@ export class RoomManager {
   }
 }
 
-// サーバー全体で1つのインスタンスを使い回すためにエクスポート
 export const roomManager = new RoomManager();

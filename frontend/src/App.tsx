@@ -12,6 +12,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('title');
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [isCpuMode, setIsCpuMode] = useState<boolean>(false);
 
   return (
     <div className="min-h-screen bg-stone-100 text-zinc-950 font-sans flex items-center justify-center">
@@ -23,7 +24,7 @@ function App() {
       )}
 
       {currentScreen === 'modeSelect' && (
-        <ModeSelectView changeScreen={setCurrentScreen} />
+        <ModeSelectView changeScreen={setCurrentScreen} setCpuMode={setIsCpuMode} />
       )}
 
       {currentScreen === 'characterSelect' && (
@@ -37,6 +38,7 @@ function App() {
         <GameView
           changeScreen={setCurrentScreen}
           myCharacterId={selectedCharacterId}
+          isCpuMode={isCpuMode}
         />
       )}
 
