@@ -57,7 +57,7 @@ async function ensureDictionaryFile(filePath: URL): Promise<void> {
 export async function loadDictionary(): Promise<Set<string>> {
   if (cachedDictionary) return cachedDictionary;
 
-  const filePath = new URL("../data/jmdict-eng.json", import.meta.url);
+  const filePath = new URL("../data/jmdict-eng-common.json", import.meta.url);
 
   await ensureDictionaryFile(filePath);
 
