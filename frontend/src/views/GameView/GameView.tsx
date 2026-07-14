@@ -113,7 +113,11 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
   useEffect(() => {
     if (!effect) return;
-    const timer = setTimeout(() => setEffect(null), 600);
+    const timer = setTimeout(() => {
+      setEffect(null);
+      setMyAnim('IDLE');
+      setOpponentAnim('IDLE');
+    }, 600);
     return () => clearTimeout(timer);
   }, [effect]);
 
@@ -165,7 +169,6 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           const prevMyPoisonStacks = myStateRef.current?.poisonStacks ?? 0;
           const prevOpponentPoisonStacks = opponentStateRef.current?.poisonStacks ?? 0;
 
-          // このターンで自分が攻撃側だったかどうか（TURN_STARTの時点で決まっている）
           const isAttackerMe = myStateRef.current?.id === activePlayerIdRef.current;
 
           setMyState(msg.payload.myState);
@@ -173,7 +176,30 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           setCurrentWord(msg.payload.word);
           setIsWaitingSync(false);
 
-          if (msg.payload.effect) setEffect(msg.payload.effect);
+          if (msg.payload.effect) {
+            setEffect(msg.payload.effect);
+
+            // 【追加】ヒット/反射に応じて、攻撃側・防御側のアニメーションを発火させる
+            const { type } = msg.payload.effect;
+
+            if (type === 'hit') {
+              // 通常ヒット：攻撃した側が前に出て、受けた側が揺れる
+              if (isAttackerMe) {
+                setMyAnim('ATTACK');
+                setOpponentAnim('HIT_SHAKE');
+              } else {
+                setOpponentAnim('ATTACK');
+                setMyAnim('HIT_SHAKE');
+              }
+            } else {
+              // 反射：攻撃側自身が後ろに下がりつつダメージを受ける
+              if (isAttackerMe) {
+                setMyAnim('REFLECT_BACK');
+              } else {
+                setOpponentAnim('REFLECT_BACK');
+              }
+            }
+          }
 
           // 【変更】誰が・何をされたのかが分かるログに
           if (msg.payload.errorMessage) {
