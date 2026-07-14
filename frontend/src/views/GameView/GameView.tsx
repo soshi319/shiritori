@@ -10,6 +10,7 @@ import { ComboIndicator } from '../../components/game/ComboIndicator';
 import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
+import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import type { ServerMessage, ClientMessage, PlayerState } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
 
@@ -56,6 +57,8 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const [myAnim, setMyAnim] = useState<CharAnimState>('IDLE');
   const [opponentAnim, setOpponentAnim] = useState<CharAnimState>('IDLE');
 
+  const activePlayerIdRef = useRef('');
+
   // 先攻/後攻の発表演出が終わったら、自動的に対戦画面へ切り替える
   useEffect(() => {
     if (status !== 'ANNOUNCING') return;
@@ -66,6 +69,10 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
     return () => clearTimeout(timer);
   }, [status]);
+
+  useEffect(() => {
+    activePlayerIdRef.current = activePlayerId;
+  }, [activePlayerId]);
 
   // statusが変わるたびに、statusRefの中身も最新に更新しておく
   useEffect(() => {
@@ -112,7 +119,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
-    const socket = new WebSocket("wss://shiritori.soshi319.deno.net/");
+    const socket = new WebSocket(import.meta.env.VITE_WS_URL);
 
     socket.onopen = () => {
       setStatus('WAITING');
@@ -158,52 +165,40 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
           const prevMyPoisonStacks = myStateRef.current?.poisonStacks ?? 0;
           const prevOpponentPoisonStacks = opponentStateRef.current?.poisonStacks ?? 0;
 
+          // このターンで自分が攻撃側だったかどうか（TURN_STARTの時点で決まっている）
+          const isAttackerMe = myStateRef.current?.id === activePlayerIdRef.current;
+
           setMyState(msg.payload.myState);
           setOpponentState(msg.payload.opponentState);
           setCurrentWord(msg.payload.word);
           setIsWaitingSync(false);
 
-          const currentIsMyTurn = myStateRef.current && activePlayerId === myStateRef.current.id;
-          const effect = msg.payload.effect;
+          if (msg.payload.effect) setEffect(msg.payload.effect);
 
-          if (effect) {
-            setEffect(effect);
-            if (effect.type === 'reflect') {
-              if (currentIsMyTurn) {
-                setMyAnim('REFLECT_BACK');
-                setOpponentAnim('IDLE');
-              } else {
-                setOpponentAnim('REFLECT_BACK');
-                setMyAnim('IDLE');
-              }
-            } else if (effect.type === 'hit') {
-              if (currentIsMyTurn) {
-                setMyAnim('ATTACK');
-                setOpponentAnim('HIT_SHAKE');
-              } else {
-                setOpponentAnim('ATTACK');
-                setMyAnim('HIT_SHAKE');
-              }
-            }
-          } else {
-            if (currentIsMyTurn) {
-              setMyAnim('ATTACK');
-            } else {
-              setOpponentAnim('ATTACK');
-            }
-          }
-
-          setTimeout(() => {
-            setMyAnim('IDLE');
-            setOpponentAnim('IDLE');
-          }, 450);
-
+          // 【変更】誰が・何をされたのかが分かるログに
           if (msg.payload.errorMessage) {
-            setLog((prev) => [`判定エラー: ${msg.payload.errorMessage}`, ...prev]);
+            const who = isAttackerMe ? 'あなた' : '相手';
+            setLog((prev) => [`${who}の「${msg.payload.word}」は無効: ${msg.payload.errorMessage}`, ...prev]);
+          } else if (msg.payload.effect) {
+            const { type, damage } = msg.payload.effect;
+
+            if (type === 'hit') {
+              const message = isAttackerMe
+                ? `あなたの「${msg.payload.word}」で相手に${damage}ダメージ！`
+                : `相手の「${msg.payload.word}」であなたが${damage}ダメージを受けた！`;
+              setLog((prev) => [message, ...prev]);
+            } else {
+              // reflect：ダメージは攻撃側自身に返る
+              const message = isAttackerMe
+                ? `相手に読まれた！あなたの「${msg.payload.word}」が反射され、自分に${damage}ダメージ！`
+                : `反射成功！相手の「${msg.payload.word}」を跳ね返し、相手に${damage}ダメージ！`;
+              setLog((prev) => [message, ...prev]);
+            }
           } else {
             setLog((prev) => [`「${msg.payload.word}」！`, ...prev]);
           }
 
+          // コンボ演出（変更なし）
           const newMyCombo = msg.payload.myState.comboCount;
           const newOpponentCombo = msg.payload.opponentState.comboCount;
 
@@ -213,17 +208,26 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
             setComboBurst(newOpponentCombo);
           }
 
-          const newlyPoisoned =
-            msg.payload.myState.poisonStacks > prevMyPoisonStacks ||
-            msg.payload.opponentState.poisonStacks > prevOpponentPoisonStacks;
+          // 【変更】毒の付与を、誰に付与されたか分かるログに
+          const myNewlyPoisoned = msg.payload.myState.poisonStacks > prevMyPoisonStacks;
+          const opponentNewlyPoisoned = msg.payload.opponentState.poisonStacks > prevOpponentPoisonStacks;
 
-          if (newlyPoisoned) {
+          if (myNewlyPoisoned || opponentNewlyPoisoned) {
             setPoisonBurst((prev) => prev + 1);
-            setLog((prev) => ['毒を受けた…', ...prev]);
+            setLog((prev) => [
+              myNewlyPoisoned ? '毒を受けた…体が重い' : '相手に毒を付与した！',
+              ...prev,
+            ]);
           }
 
-          if (msg.payload.poisonDamage && msg.payload.poisonDamage.myDamage > 0) {
-            setLog((prev) => [`毒ダメージを ${msg.payload.poisonDamage?.myDamage} 受けた！`, ...prev]);
+          // 【修正】相手側の毒ダメージも表示するよう追加（以前は自分の分しか出ていませんでした）
+          if (msg.payload.poisonDamage) {
+            if (msg.payload.poisonDamage.myDamage > 0) {
+              setLog((prev) => [`毒の効果で${msg.payload.poisonDamage?.myDamage}ダメージを受けた…`, ...prev]);
+            }
+            if (msg.payload.poisonDamage.opponentDamage > 0) {
+              setLog((prev) => [`相手は毒の効果で${msg.payload.poisonDamage?.opponentDamage}ダメージを受けている！`, ...prev]);
+            }
           }
           break;
         }
@@ -270,7 +274,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   }
 
   if (status === 'CONNECTING') {
-    return <div className="flex h-screen items-center justify-center bg-zinc-400 text-zinc-900 font-bold">サーバーに接続中...</div>;
+    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーに接続中...</div>;
   }
 
   if (status === 'WAITING') {
@@ -316,8 +320,10 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
               maxHp={myState.maxHp}
               badge={
                 <>
+                  {myState.hp <= 30 && <BakudanReadyBadge />}
                   {myState.characterId === 'C' && <ComboIndicator comboCount={myState.comboCount} />}
                   <PoisonBadge poisonStacks={myState.poisonStacks} />
+                  
                 </>
               }
             />
@@ -329,6 +335,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
               maxHp={opponentState.maxHp}
               badge={
                 <>
+                  {opponentState.hp <= 30 && <BakudanReadyBadge />}
                   {opponentState.characterId === 'C' && <ComboIndicator comboCount={opponentState.comboCount} />}
                   <PoisonBadge poisonStacks={opponentState.poisonStacks} />
                 </>
@@ -399,6 +406,21 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
         </div>
       </div>
 
+      {/* 【追加】必殺技の発動条件を、ログの下に大きく目立たせて表示 */}
+      {!isGameOver && isMyTurn && myState && myState.hp <= 30 && (
+        <div className="w-full text-center animate-pulse">
+          {myState.characterId === 'A' ? (
+            <p className="text-2xl font-black text-red-700 tracking-wide drop-shadow-sm">
+              🗡️ 「ん」で終わる4文字で「一閃」発動！
+            </p>
+          ) : (
+            <p className="text-xl font-black text-red-700 tracking-wide drop-shadow-sm">
+              🗡️ 4文字で「ん」で終わる言葉で必殺技発動！
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40 flex flex-col gap-4">
         {!isGameOver && matchingPastWords.length > 0 && (
           <div className="w-full max-w-md mx-auto animate-fade-in">
@@ -417,6 +439,8 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
             </div>
           </div>
         )}
+
+
 
         {!isGameOver ? (
           <div className="flex flex-col w-full items-center">
