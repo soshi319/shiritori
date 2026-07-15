@@ -5,6 +5,7 @@ import { CharacterSelectView } from './views/CharacterSelectView';
 import { GameView } from './views/GameView';
 import { RuleView } from './views/RuleView';
 import { PracticeView } from './views/PracticeView';
+import { CpuView } from './views/CpuView';
 import { Modal } from './components/common/Modal';
 import type { Screen } from './types/screen';
 
@@ -34,12 +35,19 @@ function App() {
         />
       )}
 
+      {/* 2. isCpuModeの有無によって表示するコンポーネントを出し分けます */}
       {currentScreen === 'game' && selectedCharacterId && (
-        <GameView
-          changeScreen={setCurrentScreen}
-          myCharacterId={selectedCharacterId}
-          isCpuMode={isCpuMode}
-        />
+        isCpuMode ? (
+          <CpuView
+            changeScreen={setCurrentScreen}
+            selectedCharId={selectedCharacterId}
+          />
+        ) : (
+          <GameView
+            changeScreen={setCurrentScreen}
+            myCharacterId={selectedCharacterId}
+          />
+        )
       )}
 
       {currentScreen === 'practice' && (
