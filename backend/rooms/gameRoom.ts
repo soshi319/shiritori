@@ -5,13 +5,14 @@ import type {
 } from "shared/types/messageTypes.ts";
 import { characters } from "shared/data/characters.ts";
 import {
-  getRequiredNextStart, // ★CPUの思考用にインポートを追加
+  getRequiredNextStart,
   isKnownWord,
   normalizeWordForComparison,
   validateWord,
 } from "shared/logic/shiritoriValidator.ts";
 import { resolveTurn } from "../game/turnResolver.ts";
 import { GAME_CONFIG } from "shared/config/gameConfig.ts";
+import { CPU_DICTIONARY } from "shared/data/cpuDictionary.ts";
 
 type Client = {
   socket: WebSocket;
@@ -29,10 +30,12 @@ export class GameRoom {
   private predictedWord: string | null = null;
   private consecutiveTimeouts: Map<string, number> = new Map();
 
-  // ★CPUモード用のプロパティを追加
   private isCpuMode = false;
   private cpuId: string | null = null;
   private cpuTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ★音（ひらがな1文字）ごとに、CPU_DICTIONARYの配列を何番目まで使ったかを覚えておく
+  private cpuMoraIndex: Map<string, number> = new Map();
 
   constructor(
     public roomId: string,
@@ -40,7 +43,7 @@ export class GameRoom {
     p2: { socket: WebSocket; name: string; characterId: string },
     private dictionary: Set<string>,
     private onRoomClose: () => void,
-    isCpuMode = false, // ★引数の最後に CPUフラグ を追加（デフォルトは false）
+    isCpuMode = false,
   ) {
     this.isCpuMode = isCpuMode;
     const id1 = crypto.randomUUID();
@@ -84,7 +87,6 @@ export class GameRoom {
     this.consecutiveTimeouts.set(id, 0);
   }
 
-  // ★特定のクライアントに安全にメッセージを送るヘルパー関数を追加
   private sendToClient(id: string, message: ServerMessage) {
     const client = this.clients.get(id);
     if (
@@ -117,7 +119,6 @@ export class GameRoom {
     const me1 = this.clients.get(playerIds[0])!.state;
     const me2 = this.clients.get(playerIds[1])!.state;
 
-    // 安全な個別のメッセージ送信に変更
     this.sendToClient(playerIds[0], {
       type: "MATCHED",
       payload: {
@@ -148,7 +149,7 @@ export class GameRoom {
     this.activeWord = null;
     this.predictedWord = null;
 
-    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUのタイマーをクリア
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
 
     this.broadcast({
       type: "TURN_START",
@@ -166,49 +167,58 @@ export class GameRoom {
       GAME_CONFIG.TURN_DURATION_SEC * 1000,
     );
 
-    // ★CPUモードかつ、現在CPUのターン（攻撃側）であれば思考ロジックを起動
     if (this.isCpuMode && this.activePlayerId === this.cpuId) {
       this.handleCpuAttack();
     }
   }
 
-  // ★CPUの攻撃（思考）ロジックを追加
+  /**
+   * ★CPUの攻撃（思考）ロジック。
+   * 辞書全体からランダムに探すのではなく、CPU_DICTIONARYの中から
+   * 「その音で何番目まで使ったか」を覚えておいて順番に返す。
+   * 同じ音で連続して攻められると配列を使い切り、最終的には「ん」で終わる単語
+   * （＝配列の最後）を口走ることになる。その単語が必殺技の条件を満たさなければ、
+   * 既存の validateWord の nounEnding 判定によってCPUがそのまま自滅する。
+   */
   private handleCpuAttack() {
     const requiredStart = getRequiredNextStart(this.currentWord);
-    const candidates: string[] = [];
+    const chosenWord = this.pickCpuWord(requiredStart);
 
-    // 読み込まれている辞書から、繋がる言葉を検索して候補に入れる
-    for (const word of this.dictionary) {
-      if (word.startsWith(requiredStart) && !this.usedWords.has(word)) {
-        // 「ん」で終わる言葉はCPUの自滅になってしまうため除外
-        if (!word.endsWith("ん")) {
-          candidates.push(word);
-        }
-      }
-    }
-
-    // 候補があればランダムに選択、無ければ空文字（パス）
-    const chosenWord = candidates.length > 0
-      ? candidates[Math.floor(Math.random() * candidates.length)]
-      : "";
-
-    // 人間が入力しているかのように見せるため、1.5秒〜3秒のランダムな遅延を挟む
     const thinkDelay = 1500 + Math.random() * 1500;
 
     this.cpuTimer = setTimeout(() => {
       if (!chosenWord) {
-        this.handleTimeUp(); // 繋がる単語が辞書になければ時間切れ処理へ
+        // その音の持ち駒が尽きた場合は、これまで通りタイムアップ（パス）扱いにフォールバック
+        this.handleTimeUp();
         return;
       }
 
       this.activeWord = chosenWord;
 
-      // もしプレイヤー（防御側）がすでに予測入力を終えていれば、その場で即ターン解決
       if (this.predictedWord !== null) {
         this.resolveCurrentTurn();
       }
-      // プレイヤーがまだ入力していなければ、プレイヤー側の入力（またはタイムアップ）を待つ
     }, thinkDelay);
+  }
+
+  /**
+   * requiredStart（次に必要な音）に対して、CPU_DICTIONARYから未使用の単語を1つ選ぶ。
+   * 既に場に出ている単語はスキップする。配列を使い切っていれば null を返す。
+   */
+  private pickCpuWord(requiredStart: string): string | null {
+    const candidates = CPU_DICTIONARY[requiredStart];
+    if (!candidates || candidates.length === 0) return null;
+
+    let idx = this.cpuMoraIndex.get(requiredStart) ?? 0;
+
+    while (idx < candidates.length && this.usedWords.has(candidates[idx])) {
+      idx++;
+    }
+
+    if (idx >= candidates.length) return null;
+
+    this.cpuMoraIndex.set(requiredStart, idx + 1);
+    return candidates[idx];
   }
 
   private handleMessage(senderId: string, data: string) {
@@ -217,7 +227,6 @@ export class GameRoom {
 
     const word = message.payload.word;
 
-    // 攻撃側（アクティブプレイヤー）の単語だけ、送信直後に辞書チェックする
     if (senderId === this.activePlayerId) {
       const hasDictionary = this.dictionary.size > 0;
 
@@ -235,9 +244,8 @@ export class GameRoom {
 
       this.activeWord = word;
 
-      // ★CPUモードでプレイヤーが攻撃した時、CPU（防御側）はカウンター（反射）をしないためダミー予測を入れて即解決
       if (this.isCpuMode) {
-        this.predictedWord = "CPU_NO_COUNTER_PREDICTION"; // 絶対に一致しない文字列
+        this.predictedWord = "CPU_NO_COUNTER_PREDICTION";
         this.resolveCurrentTurn();
         return;
       }
@@ -286,7 +294,7 @@ export class GameRoom {
 
   private resolveCurrentTurn() {
     if (this.timer) clearTimeout(this.timer);
-    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUの思考タイマーもクリア
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
 
     const isReflected = this.predictedWord !== null &&
       this.activeWord !== null &&
@@ -380,7 +388,6 @@ export class GameRoom {
     if (this.timer) clearTimeout(this.timer);
     if (this.cpuTimer) clearTimeout(this.cpuTimer);
 
-    // CPU戦の場合、CPUが切断することはないのでプレイヤーの切断のみをハンドリング
     if (this.isCpuMode && disconnectedId === this.cpuId) return;
 
     const opponent = Array.from(this.clients.values()).find((c) =>
@@ -403,7 +410,6 @@ export class GameRoom {
     const me1 = this.clients.get(playerIds[0])!.state;
     const me2 = this.clients.get(playerIds[1])!.state;
 
-    // 安全な個別送信ヘルパー経由でリザルトを送信
     this.sendToClient(playerIds[0], {
       type: "TURN_RESULT",
       payload: {
@@ -440,7 +446,7 @@ export class GameRoom {
     reason: "hp_zero" | "time_up" | "bakudan_failed" | "poison" | "disconnect",
   ) {
     if (this.timer) clearTimeout(this.timer);
-    if (this.cpuTimer) clearTimeout(this.cpuTimer); // CPUタイマーのクリア漏れ防止
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
     this.broadcast({ type: "GAME_OVER", payload: { winnerId, reason } });
     this.onRoomClose();
   }

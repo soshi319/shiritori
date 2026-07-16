@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Screen } from '../../types/screen';
 import { characters } from 'shared/data/characters';
 import { HpBar } from '../../components/game/HpBar';
@@ -11,82 +11,20 @@ import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
-import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
-import { checkWordExists } from '../../utils/checkWordExists'; // 辞書チェック用
-
-export type PlayerState = {
-  id: string;
-  name: string;
-  characterId: string;
-  hp: number;
-  maxHp: number;
-  hasEndured: boolean;
-  poisonStacks: number;
-  comboCount: number;
-  lastWordLength: number | null;
-};
+import type { PlayerState } from 'shared/types/messageTypes';
+import {
+  getRequiredNextStart,
+  normalizeWordForComparison,
+  validateWord,
+} from 'shared/logic/shiritoriValidator';
+// ★ turnResolver.ts は shared/logic/ に置く前提（gameRoom.ts と全く同じロジックをフロントでも使う）
+import { resolveTurn } from 'shared/logic/turnResolver';
+import { GAME_CONFIG } from 'shared/config/gameConfig';
+// ★ CPU用の固定辞書。サーバー側 GameRoom.handleCpuAttack と共通のものを使う
+import { CPU_DICTIONARY } from 'shared/data/cpuDictionary';
+import { checkWordExists } from '../../utils/checkWordExists';
 
 const HIRAGANA_ONLY_REGEX = /^[ぁ-んー]+$/;
-
-// 濁点・半濁点（◯）文字判定用の正規表現（ぱぴぷぺぽ等の半濁点も網羅）
-const HAS_DAKUTEN_OR_HANDAKUTEN_REGEX = /[がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゔガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴ]/;
-
-const CPU_DICTIONARY: Record<string, string[]> = {
-  "あ": ["あめ", "あさがお", "あき", "あかん"],
-  "い": ["いか", "いす", "いと", "いおん"],
-  "う": ["うみ", "うし", "うさぎ", "うどん"],
-  "え": ["えき", "えんぴつ", "えのぐ", "えん"],
-  "お": ["おにぎり", "おもちゃ", "おかし", "おんせん"],
-  "か": ["かさ", "かめ", "からす", "かん"],
-  "き": ["きつね", "きのこ", "きり", "きりん"],
-  "く": ["くま", "くつ", "くすり", "くん"],
-  "け": ["けしごむ", "けいと", "けむり", "けん"],
-  "こ": ["こま", "こいぬ", "ことり", "こん"],
-  "さ": ["さかな", "さる", "さくら", "さん"],
-  "し": ["しか", "しお", "しんぶん", "しん"],
-  "す": ["すいか", "すずめ", "すな", "すん"],
-  "せ": ["せんせい", "せっけん", "せなか", "せん"],
-  "そ": ["そら", "そうじき", "そり", "そん"],
-  "た": ["たいこ", "たぬき", "たまご", "たん"],
-  "ち": ["ちず", "ちきゅう", "ちえ", "ちん"],
-  "つ": ["つくえ", "つばめ", "つき", "つん"],
-  "て": ["てがみ", "てんとうむし", "てぶくろ", "てん"],
-  "と": ["とら", "とまと", "とうもろこし", "とん"],
-  "な": ["なす", "なわとび", "なみ", "なん"],
-  "に": ["にんじん", "にわとり", "にじ", "にん"],
-  "ぬ": ["ぬりえ", "ぬいぐるみ", "ぬま", "ぬん"],
-  "ね": ["ねこ", "ねずみ", "ねんど", "ねん"],
-  "の": ["のこぎり", "のり", "のぼり", "のん"],
-  "は": ["はさみ", "はと", "はな", "はん"],
-  "ひ": ["ひこうき", "ひまわり", "ひつじ", "ひん"],
-  "ふ": ["ふうせん", "ふね", "ふで", "ふん"],
-  "へ": ["へや", "へび", "へい", "へん"],
-  "ほ": ["ほし", "ほたる", "ほんとう", "ほん"],
-  "ま": ["まくら", "まつり", "まめ", "まん"],
-  "み": ["みかん", "みず", "みどり", "みん"],
-  "む": ["むし", "むぎ", "むすめ", "むん"],
-  "め": ["めがね", "めだか", "めろん", "めん"],
-  "も": ["もも", "もみじ", "もち", "もん"],
-  "や": ["やま", "やさい", "やかん", "やん"],
-  "ゆ": ["ゆき", "ゆり", "ゆうき", "ゆん"],
-  "よ": ["よる", "よぞら", "ようかい", "よん"],
-  "ら": ["らいおん", "らっぱ", "らくがき", "らん"],
-  "り": ["りす", "りぼん", "りこぴん", "りん"],
-  "る": ["るす", "るーる", "るびー", "るん"],
-  "れ": ["れもん", "れんが", "れんず", "れん"],
-  "ろ": ["ろば", "ろうそく", "ろけっと", "ろん"],
-  "わ": ["わに", "わたあめ", "わな", "わん"],
-  "default": ["りんご", "ごま", "まり", "みかん"] 
-};
-
-const calculateBaseDamage = (word: string) => {
-  const len = word.length;
-  if (len === 1) return 40;
-  if (len === 2) return 25;
-  if (len === 3) return 15;
-  if (len === 4) return 10;
-  return 5;
-};
 
 type CpuViewProps = {
   changeScreen: (screen: Screen) => void;
@@ -94,21 +32,23 @@ type CpuViewProps = {
 };
 
 type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
+type LocalId = 'me' | 'cpu';
 
 export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
-  const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
-  
+  const [status, setStatus] = useState<'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('ANNOUNCING');
+
   const [myState, setMyState] = useState<PlayerState | null>(null);
   const [opponentState, setOpponentState] = useState<PlayerState | null>(null);
-  const [activePlayerId, setActivePlayerId] = useState<string>('me');
+
+  const [activePlayerId, setActivePlayerId] = useState<LocalId>('me');
   const [turnId, setTurnId] = useState<number>(0);
-  
+
   const [currentWord, setCurrentWord] = useState('しりとり');
   const [usedWords, setUsedWords] = useState<Set<string>>(new Set(['しりとり']));
   const [history, setHistory] = useState<string[]>(['しりとり']);
   const [log, setLog] = useState<string[]>([]);
-  
-  const [winnerId, setWinnerId] = useState<string | null>(null);
+
+  const [winnerId, setWinnerId] = useState<LocalId | null>(null);
   const [gameOverReason, setGameOverReason] = useState<string | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
 
@@ -124,50 +64,60 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
   const [isResolving, setIsResolving] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
 
+  // CPUが音ごとに何番目まで単語を使ったかを覚えておく（stateにせずrefで持つ）
+  const cpuMoraIndexRef = useRef<Map<string, number>>(new Map());
+  // 連続タイムアップ回数（本家GameRoomのconsecutiveTimeoutsと同じ役割）
+  const consecutiveTimeoutsRef = useRef(0);
+
   const myCharacter = characters.find((c) => c.id === myState?.characterId) || characters[0];
 
   const requiredStartNow = getRequiredNextStart(currentWord);
-  const isMyTurn = myState && activePlayerId === myState.id;
+  const isMyTurn = myState !== null && activePlayerId === myState.id;
   const isWaitingSync = myInputWord !== null && cpuInputWord === null;
   const isGameOver = status === 'GAME_OVER';
 
+  // 初期化：キャラクター決定＋先攻/後攻をランダムに決定し、後攻にHPボーナスを付与
+  // （本家 GameRoom.start() と同じルール）
   useEffect(() => {
-    const meChar = characters.find(c => c.id === selectedCharId) || characters[0];
-    const cpuIds = ["A", "B", "C", "D"];
-    const randomCpuId = cpuIds[Math.floor(Math.random() * cpuIds.length)];
-    const cpuChar = characters.find(c => c.id === randomCpuId) || characters[3];
+    const meChar = characters.find((c) => c.id === selectedCharId) || characters[0];
+    const cpuCandidateIds = characters.map((c) => c.id).filter((id) => id !== selectedCharId);
+    const randomCpuId = cpuCandidateIds[Math.floor(Math.random() * cpuCandidateIds.length)]
+      ?? characters[0].id;
+    const cpuChar = characters.find((c) => c.id === randomCpuId)!;
+
+    const first: LocalId = Math.random() < 0.5 ? 'me' : 'cpu';
 
     setMyState({
       id: 'me',
       name: 'あなた',
       characterId: meChar.id,
-      hp: meChar.maxHp,
+      hp: meChar.maxHp + (first === 'cpu' ? GAME_CONFIG.SECOND_TURN_HP_BONUS : 0),
       maxHp: meChar.maxHp,
       poisonStacks: 0,
       hasEndured: false,
       comboCount: 0,
-      lastWordLength: null
+      lastWordLength: null,
     });
 
     setOpponentState({
       id: 'cpu',
-      name: `CPU (${cpuChar.name})`,
+      name: `CPU（${cpuChar.name}）`,
       characterId: cpuChar.id,
-      hp: cpuChar.maxHp,
+      hp: cpuChar.maxHp + (first === 'me' ? GAME_CONFIG.SECOND_TURN_HP_BONUS : 0),
       maxHp: cpuChar.maxHp,
       poisonStacks: 0,
       hasEndured: false,
       comboCount: 0,
-      lastWordLength: null
+      lastWordLength: null,
     });
 
+    setActivePlayerId(first);
     setStatus('ANNOUNCING');
-    setActivePlayerId('me');
 
     const startTimer = setTimeout(() => {
       setStatus('PLAYING');
       setTurnId(1);
-      setLog(['対戦相手が見つかりました！バトルスタート！']);
+      setLog(['バトルスタート！']);
     }, 2500);
 
     return () => clearTimeout(startTimer);
@@ -195,344 +145,292 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
     return () => clearTimeout(timer);
   }, [effect]);
 
-  // CPU思考ルーチン
+  // 2回連続でパスになった側の負け、それ以外は何もなくターンを渡すだけ（本家と同じ仕様）
+  function applyPass(whoTimedOut: LocalId) {
+    const timeoutCount = consecutiveTimeoutsRef.current + 1;
+    consecutiveTimeoutsRef.current = timeoutCount;
+
+    if (timeoutCount >= 2) {
+      setWinnerId(whoTimedOut === 'me' ? 'cpu' : 'me');
+      setGameOverReason('time_up');
+      setStatus('GAME_OVER');
+      return;
+    }
+
+    setLog((prev) => [
+      whoTimedOut === 'me'
+        ? '時間切れのため、ターンをパスしました'
+        : 'CPUが答えられず、ターンをパスしました',
+      ...prev,
+    ]);
+
+    setActivePlayerId(whoTimedOut === 'me' ? 'cpu' : 'me');
+    setTurnId((prev) => prev + 1);
+    setMyInputWord(null);
+    setCpuInputWord(null);
+    setIsResolving(false);
+    setInputError(null);
+  }
+
+  // CPU思考ルーチン：
+  // 自分（CPU）が攻撃側なら固定辞書から未使用の単語を順番に選ぶ。
+  // 自分が防御側（プレイヤーが攻撃側）なら、反射を狙うためのランダムな予測を立てる。
   useEffect(() => {
     if (status !== 'PLAYING' || isGameOver) return;
     if (cpuInputWord !== null) return;
+    if (!myState || !opponentState) return;
 
     const delay = Math.random() * 1500 + 1500;
-    
+
     const cpuActionTimer = setTimeout(() => {
-      const startChar = requiredStartNow;
-      const wordList = CPU_DICTIONARY[startChar] || CPU_DICTIONARY["default"];
-      
-      const isCpuBakudanReady = opponentState && opponentState.hp <= 30;
-      let chosenWord = "";
+      const candidates = CPU_DICTIONARY[requiredStartNow];
 
       if (!isMyTurn) {
-        if (isCpuBakudanReady) {
-          const bakudanWord = wordList.find(w => w.length === 4 && w.endsWith('ん') && !usedWords.has(w));
-          if (bakudanWord) {
-            chosenWord = bakudanWord;
+        // CPUが攻撃側
+        let chosenWord: string | null = null;
+
+        if (candidates && candidates.length > 0) {
+          const finisher = candidates[candidates.length - 1];
+
+          // 自分のHPが必殺技の目安（30以下）なら、まだ使っていない最後の「ん」単語で一閃を狙う
+          if (opponentState.hp <= 30 && finisher.endsWith('ん') && !usedWords.has(finisher)) {
+            chosenWord = finisher;
+          } else {
+            let idx = cpuMoraIndexRef.current.get(requiredStartNow) ?? 0;
+            while (idx < candidates.length && usedWords.has(candidates[idx])) {
+              idx++;
+            }
+            if (idx < candidates.length) {
+              cpuMoraIndexRef.current.set(requiredStartNow, idx + 1);
+              chosenWord = candidates[idx];
+            }
           }
         }
 
         if (!chosenWord) {
-          const validWordsList = wordList.filter(w => !usedWords.has(w) && !w.endsWith('ん'));
-          if (validWordsList.length > 0) {
-            chosenWord = validWordsList[0]; 
-          } else {
-            chosenWord = wordList[0]; 
-          }
+          // 持ち駒が尽きた・その音の単語を持っていない場合は、タイムアップと同じ扱いにする
+          applyPass('cpu');
+          return;
         }
-      } else {
-        const randomIndex = Math.floor(Math.random() * wordList.length);
-        chosenWord = wordList[randomIndex];
-      }
 
-      setCpuInputWord(chosenWord);
+        setCpuInputWord(chosenWord);
+      } else {
+        // CPUが防御側：反射狙いのランダムな予測（外れても何も起きない）
+        const guess = candidates && candidates.length > 0
+          ? candidates[Math.floor(Math.random() * candidates.length)]
+          : '';
+        setCpuInputWord(guess);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, delay);
 
     return () => clearTimeout(cpuActionTimer);
-  }, [status, turnId, isMyTurn, cpuInputWord, requiredStartNow, usedWords, isGameOver, opponentState]);
+  }, [status, turnId, isMyTurn, cpuInputWord, requiredStartNow, usedWords, isGameOver, myState, opponentState]);
 
   useEffect(() => {
     if (myInputWord !== null && cpuInputWord !== null && !isResolving) {
       setIsResolving(true);
-      resolveTurn(myInputWord, cpuInputWord);
+      resolveCurrentTurn(myInputWord, cpuInputWord);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myInputWord, cpuInputWord, isResolving]);
 
-  const resolveTurn = (myWord: string, cpuWord: string) => {
+  // ターン解決：本家サーバーの resolveCurrentTurn と全く同じ validateWord / resolveTurn を使う
+  function resolveCurrentTurn(myWord: string, cpuWord: string) {
     if (!myState || !opponentState) return;
+
     const isAttackerMe = activePlayerId === 'me';
     const attackerWord = isAttackerMe ? myWord : cpuWord;
     const defenderWord = isAttackerMe ? cpuWord : myWord;
 
-    const myCharId = myState.characterId;
-    const opCharId = opponentState.characterId;
-    const attackerCharId = isAttackerMe ? myCharId : opCharId;
+    const attackerState = isAttackerMe ? myState : opponentState;
+    const defenderState = isAttackerMe ? opponentState : myState;
 
-    const attackerHp = isAttackerMe ? myState.hp : opponentState.hp;
+    const isReflected = attackerWord !== '' && defenderWord !== '' &&
+      normalizeWordForComparison(attackerWord) === normalizeWordForComparison(defenderWord);
 
-    const isBakudan = attackerHp <= 30 && attackerWord.length === 4 && attackerWord.endsWith('ん');
-    const isInvalidN = attackerWord.endsWith('ん') && !isBakudan;
+    const valResult = validateWord(
+      attackerWord,
+      currentWord,
+      usedWords,
+      attackerState.hp,
+      attackerState.characterId,
+    );
 
-    if (isInvalidN || usedWords.has(attackerWord)) {
+    if (!valResult.isValid) {
       const who = isAttackerMe ? 'あなた' : '相手';
-      const reason = isInvalidN ? '「ん」で終わっています' : 'すでに使われた言葉です';
-      
-      setLog(prev => [`${who}の「${attackerWord}」は無効: ${reason}`, ...prev]);
-      
-      if (isAttackerMe) {
-        setMyState(prev => prev ? { ...prev, hp: 0 } : prev);
-        setWinnerId('cpu');
-      } else {
-        setOpponentState(prev => prev ? { ...prev, hp: 0 } : prev);
-        setWinnerId('me');
+      setLog((prev) => [`${who}の「${attackerWord}」は無効: ${valResult.errorMessage}`, ...prev]);
+
+      if (valResult.failureReason === 'nounEnding') {
+        setWinnerId(isAttackerMe ? 'cpu' : 'me');
+        setGameOverReason('bakudan_failed');
+        setStatus('GAME_OVER');
+        return;
       }
-      setStatus('GAME_OVER');
-      setGameOverReason('hp_zero');
+
+      consecutiveTimeoutsRef.current = 0;
+      setActivePlayerId(isAttackerMe ? 'cpu' : 'me');
+      setTurnId((prev) => prev + 1);
+      setMyInputWord(null);
+      setCpuInputWord(null);
+      setIsResolving(false);
+      setInputError(null);
       return;
     }
 
-    setUsedWords(prev => new Set(prev).add(attackerWord));
-    setHistory(prev => [...prev, attackerWord]);
+    consecutiveTimeoutsRef.current = 0;
+
+    const newUsedWords = new Set(usedWords);
+    newUsedWords.add(attackerWord);
+    setHistory((prev) => (prev.includes(attackerWord) ? prev : [...prev, attackerWord]));
     setCurrentWord(attackerWord);
 
-    let dmg = 0;
-    if (isBakudan) {
-      dmg = calculateBaseDamage(attackerWord) * 8; 
+    const result = resolveTurn(attackerWord, valResult.isBakudan, isReflected, attackerState, defenderState);
+    if (valResult.triggersPoison) result.nextOpponentState.poisonStacks += 1;
+
+    const nextAttackerState = result.nextMyState;
+    const nextDefenderState = result.nextOpponentState;
+
+    const prevAttackerCombo = attackerState.comboCount;
+    const prevAttackerPoison = attackerState.poisonStacks;
+    const prevDefenderPoison = defenderState.poisonStacks;
+
+    if (isAttackerMe) {
+      setMyState(nextAttackerState);
+      setOpponentState(nextDefenderState);
     } else {
-      dmg = calculateBaseDamage(attackerWord);
+      setOpponentState(nextAttackerState);
+      setMyState(nextDefenderState);
     }
 
-    let newComboCount = 0;
+    if (result.effect) {
+      setEffect(result.effect);
+      const { type, damage } = result.effect;
 
-    if (attackerCharId === 'C' && !isBakudan) {
-      const lastLen = isAttackerMe ? myState.lastWordLength : opponentState.lastWordLength;
-      const currentCombo = isAttackerMe ? myState.comboCount : opponentState.comboCount;
-      
-      newComboCount = (lastLen === attackerWord.length) ? currentCombo + 1 : 0;
-      const multiplier = 1 + newComboCount * 0.2; 
-      
-      dmg = Math.ceil(dmg * multiplier);
-    }
+      if (type === 'hit') {
+        if (isAttackerMe) { setMyAnim('ATTACK'); setOpponentAnim('HIT_SHAKE'); }
+        else { setOpponentAnim('ATTACK'); setMyAnim('HIT_SHAKE'); }
 
-    const isReflected = attackerWord === defenderWord;
-
-    let nextMyHp = myState.hp;
-    let nextOpHp = opponentState.hp;
-    let nextMyCombo = myState.comboCount;
-    let nextOpCombo = opponentState.comboCount;
-    let nextMyPoison = myState.poisonStacks;
-    let nextOpPoison = opponentState.poisonStacks;
-    let nextMyEndured = myState.hasEndured;
-    let nextOpEndured = opponentState.hasEndured;
-
-    if (isReflected) {
-      let reflectDmg = dmg;
-      
-      if (attackerCharId === 'B') {
-        reflectDmg = Math.ceil(reflectDmg / 2);
-      }
-
-      setLog(prev => [
-        isAttackerMe
-          ? `相手に読まれた！あなたの「${attackerWord}」が反射され、自分に${reflectDmg}ダメージ！${attackerCharId === 'B' ? '（軽減）' : ''}`
-          : `反射成功！相手の「${attackerWord}」を跳ね返し、相手に${reflectDmg}ダメージ！${attackerCharId === 'B' ? '（軽減）' : ''}`,
-        ...prev,
-      ]);
-      setEffect({ id: Date.now(), type: 'reflect', damage: reflectDmg });
-
-      if (isAttackerMe) {
-        setMyAnim('REFLECT_BACK');
-        nextMyHp = Math.max(0, nextMyHp - reflectDmg);
-        nextMyCombo = 0; 
+        setLog((prev) => [
+          isAttackerMe
+            ? `${valResult.isBakudan ? '⚡️一閃発動！⚡️ ' : ''}あなたの「${attackerWord}」で相手に${damage}ダメージ！`
+            : `${valResult.isBakudan ? '⚡️一閃発動！⚡️ ' : ''}相手の「${attackerWord}」であなたが${damage}ダメージを受けた！`,
+          ...prev,
+        ]);
       } else {
-        setOpponentAnim('REFLECT_BACK');
-        nextOpHp = Math.max(0, nextOpHp - reflectDmg);
-        nextOpCombo = 0; 
+        if (isAttackerMe) setMyAnim('REFLECT_BACK'); else setOpponentAnim('REFLECT_BACK');
+
+        setLog((prev) => [
+          isAttackerMe
+            ? `相手に読まれた！あなたの「${attackerWord}」が反射され、自分に${damage}ダメージ！`
+            : `反射成功！相手の「${attackerWord}」を跳ね返し、相手に${damage}ダメージ！`,
+          ...prev,
+        ]);
       }
     } else {
-      setLog(prev => [
-        isAttackerMe
-          ? `${isBakudan ? '⚡️一閃発動！⚡️ ' : ''}あなたの「${attackerWord}」で相手に${dmg}ダメージ！`
-          : `${isBakudan ? '⚡️一閃発動！⚡️ ' : ''}相手の「${attackerWord}」であなたが${dmg}ダメージを受けた！`,
+      setLog((prev) => [`「${attackerWord}」！`, ...prev]);
+    }
+
+    if (nextAttackerState.comboCount > prevAttackerCombo && nextAttackerState.comboCount >= 2) {
+      setComboBurst(nextAttackerState.comboCount);
+    }
+
+    if (
+      nextAttackerState.poisonStacks > prevAttackerPoison ||
+      nextDefenderState.poisonStacks > prevDefenderPoison
+    ) {
+      setPoisonBurst((prev) => prev + 1);
+      setLog((prev) => [isAttackerMe ? '相手に毒を付与した！' : '毒を受けた…体が重い', ...prev]);
+    }
+
+    if (result.poisonDamage) {
+      const humanDmg = isAttackerMe ? result.poisonDamage.myDamage : result.poisonDamage.opponentDamage;
+      const cpuDmg = isAttackerMe ? result.poisonDamage.opponentDamage : result.poisonDamage.myDamage;
+      if (humanDmg > 0) setLog((prev) => [`毒の効果で${humanDmg}ダメージを受けた…`, ...prev]);
+      if (cpuDmg > 0) setLog((prev) => [`相手は毒の効果で${cpuDmg}ダメージを受けている！`, ...prev]);
+    }
+
+    if (result.enduredPlayerId) {
+      const enduredId = result.enduredPlayerId as LocalId; // idは常に 'me' | 'cpu'
+      setLog((prev) => [
+        enduredId === 'me' ? 'あなたの能力発動！致命傷を1HPで耐えた！' : '相手の能力発動！致命傷を1HPで耐えた！',
         ...prev,
       ]);
-      setEffect({ id: Date.now(), type: 'hit', damage: dmg });
-
-      if (isAttackerMe) {
-        setMyAnim('ATTACK');
-        setOpponentAnim('HIT_SHAKE');
-        nextOpHp = Math.max(0, nextOpHp - dmg);
-
-        if (attackerCharId === 'C' && !isBakudan) {
-          nextMyCombo = newComboCount;
-          if (nextMyCombo >= 2) setComboBurst(nextMyCombo);
-        } else {
-          nextMyCombo = 0;
-        }
-
-        // 【ドロシー(D)毒付与仕様】濁点・半濁点がある場合のみ毒を付与
-        if (attackerCharId === 'D') {
-          const hasDakutenOrHandakuten = HAS_DAKUTEN_OR_HANDAKUTEN_REGEX.test(attackerWord);
-          if (hasDakutenOrHandakuten) {
-            nextOpPoison += 1;
-            setPoisonBurst((prev) => prev + 1);
-            setLog(prev => [`ドロシーの魔力！「${attackerWord}」の濁音・半濁音により、相手に毒を付与した！`, ...prev]);
-          } else {
-            setLog(prev => [`「${attackerWord}」に濁音・半濁音がないため、ドロシーの毒は付与されなかった。`, ...prev]);
-          }
-        }
-
-      } else {
-        setOpponentAnim('ATTACK');
-        setMyAnim('HIT_SHAKE');
-        nextMyHp = Math.max(0, nextMyHp - dmg);
-
-        if (attackerCharId === 'C' && !isBakudan) {
-          nextOpCombo = newComboCount;
-          if (nextOpCombo >= 2) setComboBurst(nextOpCombo);
-        } else {
-          nextOpCombo = 0;
-        }
-
-        // 【相手がドロシー(D)の場合】
-        if (attackerCharId === 'D') {
-          const hasDakutenOrHandakuten = HAS_DAKUTEN_OR_HANDAKUTEN_REGEX.test(attackerWord);
-          if (hasDakutenOrHandakuten) {
-            nextMyPoison += 1;
-            setPoisonBurst((prev) => prev + 1);
-            setLog(prev => [`毒を受けた…（「${attackerWord}」に濁音・半濁音があるため）`, ...prev]);
-          } else {
-            setLog(prev => [`相手の「${attackerWord}」には濁音・半濁音がないため、毒は受けなかった。`, ...prev]);
-          }
-        }
-      }
+      const specialWord = 'アレスの足搔き・あ';
+      newUsedWords.add(specialWord);
+      setCurrentWord(specialWord);
+      setActivePlayerId(enduredId);
+    } else {
+      setActivePlayerId(isAttackerMe ? 'cpu' : 'me');
     }
 
-    if (nextMyHp <= 0 && myCharId === 'A' && !nextMyEndured) {
-      nextMyHp = 1;
-      nextMyEndured = true;
-      setLog(prev => ['アレスの能力発動！致命傷を1HPで耐えた！', ...prev]);
-    }
-    if (nextOpHp <= 0 && opCharId === 'A' && !nextOpEndured) {
-      nextOpHp = 1;
-      nextOpEndured = true;
-      setLog(prev => ['相手のアレスが能力発動！致命傷を1HPで耐えた！', ...prev]);
-    }
-
-    const isGameOverAfterMain = nextMyHp <= 0 || nextOpHp <= 0;
-
-    if (!isGameOverAfterMain) {
-      if (nextMyPoison > 0) {
-        const pDmg = nextMyPoison * 5; 
-        nextMyHp -= pDmg;
-        setLog(prev => [`毒の効果で${pDmg}ダメージを受けた…`, ...prev]);
-      }
-      if (nextOpPoison > 0) {
-        const pDmg = nextOpPoison * 5;
-        nextOpHp -= pDmg;
-        setLog(prev => [`相手は毒の効果で${pDmg}ダメージを受けている！`, ...prev]);
-      }
-    }
-
-    setMyState(prev => prev ? { 
-      ...prev, hp: Math.max(0, nextMyHp), comboCount: nextMyCombo, poisonStacks: nextMyPoison, hasEndured: nextMyEndured, 
-      lastWordLength: isAttackerMe ? attackerWord.length : prev.lastWordLength 
-    } : prev);
-    
-    setOpponentState(prev => prev ? { 
-      ...prev, hp: Math.max(0, nextOpHp), comboCount: nextOpCombo, poisonStacks: nextOpPoison, hasEndured: nextOpEndured, 
-      lastWordLength: isAttackerMe ? prev.lastWordLength : attackerWord.length 
-    } : prev);
-
-    if (nextMyHp <= 0 || nextOpHp <= 0) {
-      setStatus('GAME_OVER');
-      setWinnerId(nextMyHp <= 0 && nextOpHp <= 0 ? 'draw' : nextMyHp <= 0 ? 'cpu' : 'me');
-      setGameOverReason(isGameOverAfterMain ? 'hp_zero' : 'poison');
-      return;
-    }
-
-    setActivePlayerId(isAttackerMe ? 'cpu' : 'me');
-    setTurnId(prev => prev + 1);
+    setUsedWords(newUsedWords);
+    setTurnId((prev) => prev + 1);
     setMyInputWord(null);
     setCpuInputWord(null);
     setIsResolving(false);
-  };
+    setInputError(null);
+
+    if (result.gameOverReason) {
+      const myFinalHp = isAttackerMe ? nextAttackerState.hp : nextDefenderState.hp;
+      setWinnerId(myFinalHp > 0 ? 'me' : 'cpu');
+      setGameOverReason(result.gameOverReason);
+      setStatus('GAME_OVER');
+    }
+  }
 
   const handleSubmitWord = async (word: string) => {
     if (status !== 'PLAYING' || isGameOver || isChecking) return;
-    
+    if (myInputWord !== null) return;
+
     const hiraWord = normalizeWordForComparison(word);
 
-    // 1. ひらがなのみの入力かチェック
     if (!HIRAGANA_ONLY_REGEX.test(hiraWord)) {
       setInputError('ひらがなで入力してください');
       return;
     }
 
-    // 2. 開始文字チェック
     if (!hiraWord.startsWith(requiredStartNow)) {
       setInputError(`「${requiredStartNow}」から始まる言葉を入力してください！`);
       return;
     }
 
-    // 3. 重複チェック
     if (usedWords.has(hiraWord)) {
       setInputError(`「${hiraWord}」はすでに使用されています。`);
       return;
     }
 
-    // 4. 辞書存在チェック（バックグラウンド処理）
-    setIsChecking(true);
     setInputError(null);
 
-    try {
-      const exists = await checkWordExists(hiraWord);
-      if (!exists) {
-        setInputError(`「${hiraWord}」は辞書に見つかりませんでした。別の単語を試してください。`);
+    // 辞書チェックは、自分が攻撃側（アクティブプレイヤー）の時だけ行う（本家サーバーと同じ仕様。
+    // 防御側の「予測」入力は辞書に無い言葉でも構わない）
+    if (isMyTurn) {
+      setIsChecking(true);
+      try {
+        const exists = await checkWordExists(hiraWord);
+        if (!exists) {
+          setInputError(`「${hiraWord}」は辞書に見つかりませんでした。別の単語を試してください。`);
+          setIsChecking(false);
+          return;
+        }
+      } catch (err) {
+        console.error('辞書チェック中にエラーが発生しました:', err);
+        setInputError('通信エラーのため、辞書チェックに失敗しました。');
         setIsChecking(false);
         return;
       }
-    } catch (err) {
-      console.error("辞書チェック中にエラーが発生しました:", err);
-      setInputError("通信エラーのため、辞書チェックに失敗しました。");
       setIsChecking(false);
-      return;
     }
 
-    setIsChecking(false);
-    setInputError(null);
-    setMyInputWord(hiraWord); 
+    setMyInputWord(hiraWord);
   };
 
   const handleTimeUp = () => {
-    if (status !== 'PLAYING') return;
-
-    if (myInputWord === null && myState) {
-      setLog(prev => [`時間切れ！あなたが20ダメージを受けた！`, ...prev]);
-      setMyState(prev => {
-        if (!prev) return prev;
-        let nextHp = Math.max(0, prev.hp - 20);
-        let nextEndured = prev.hasEndured;
-
-        if (nextHp <= 0 && prev.characterId === 'A' && !nextEndured) {
-          nextHp = 1;
-          nextEndured = true;
-          setLog(p => ['アレスの能力発動！致命傷を1HPで耐えた！', ...p]);
-        }
-
-        if (nextHp <= 0) {
-          setStatus('GAME_OVER');
-          setWinnerId('cpu');
-          setGameOverReason('time_up');
-        }
-        return { ...prev, hp: nextHp, comboCount: 0, hasEndured: nextEndured, lastWordLength: null };
-      });
-
-      setMyInputWord(null);
-      setCpuInputWord(null);
-      setIsResolving(false);
-      setActivePlayerId(isMyTurn ? 'cpu' : 'me');
-      setTurnId(prev => prev + 1);
-    }
+    if (status !== 'PLAYING' || isGameOver) return;
+    if (!isMyTurn) return;
+    if (myInputWord !== null) return;
+    applyPass('me');
   };
-
-  if (status === 'CONNECTING') {
-    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーに接続中...</div>;
-  }
-
-  if (status === 'WAITING') {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">
-        <div className="animate-spin h-10 w-10 border-4 border-zinc-600 rounded-full border-t-transparent"></div>
-        <p className="text-sm font-bold tracking-wide text-zinc-800">対戦相手を待っています...</p>
-      </div>
-    );
-  }
 
   if (status === 'ANNOUNCING') {
     const isMeFirst = myState !== null && activePlayerId === myState.id;
@@ -588,11 +486,11 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
 
         <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 relative min-h-[160px]">
           {myState && (
-            <div 
+            <div
               className={`w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center transition-all ease-out relative ${
                 myAnim === 'ATTACK' ? 'translate-x-16 duration-150 z-10' :
                 myAnim === 'REFLECT_BACK' ? '-translate-x-12 duration-150' :
-                myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -608,11 +506,11 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
           )}
 
           {opponentState && (
-            <div 
+            <div
               className={`w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center transition-all ease-out relative ${
                 opponentAnim === 'ATTACK' ? '-translate-x-16 duration-150 z-10' :
                 opponentAnim === 'REFLECT_BACK' ? 'translate-x-12 duration-150' :
-                opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -638,7 +536,7 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
         </div>
 
         {!isGameOver && (
-          <TurnTimer turnId={turnId} duration={40} onTimeUp={handleTimeUp} />
+          <TurnTimer turnId={turnId} duration={GAME_CONFIG.TURN_DURATION_SEC} onTimeUp={handleTimeUp} />
         )}
 
         <div className="w-full h-40 overflow-y-auto bg-white/60 rounded-xl p-3 text-sm flex flex-col gap-1 border border-zinc-300/50 shadow-sm">
@@ -693,20 +591,18 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
                 <p className="text-zinc-700 font-semibold text-sm">相手の入力を待っています...</p>
               </div>
             ) : (
-              <div className="w-full">
-                <WordInputField 
-                  onSubmit={handleSubmitWord} 
-                  disabled={false} 
-                  isMyTurn={isMyTurn ?? false} 
-                  requiredStart={requiredStartNow} 
-                />
-              </div>
+              <WordInputField
+                onSubmit={handleSubmitWord}
+                disabled={isChecking}
+                isMyTurn={isMyTurn ?? false}
+                requiredStart={requiredStartNow}
+              />
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 py-4">
             <h2 className="text-2xl font-black text-zinc-900 tracking-wide">
-              {myState?.id === winnerId ? '🎉 あなたの勝利！' : myState?.id === 'draw' ? '🤝 引き分け' : '💀 あなたの敗北...'}
+              {winnerId === 'me' ? '🎉 あなたの勝利！' : '💀 あなたの敗北...'}
             </h2>
             <p className="text-sm text-zinc-700 font-medium">
               決着の理由:{' '}
