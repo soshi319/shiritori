@@ -38,7 +38,7 @@ function isObscureWord(word: JMdictWord): boolean {
 export async function loadDictionary(): Promise<Set<string>> {
   if (cachedDictionary) return cachedDictionary;
 
-  const filePath = new URL("../data/jmdict-eng-common.json", import.meta.url);
+  const filePath = new URL("../data/jmdict-eng.json", import.meta.url);
   let raw: string;
 
   try {
