@@ -11,7 +11,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-Deno.serve({ port: 8000 }, (req) => {
+// ★Renderなどのホスティングサービスは、PORT環境変数でリッスンすべきポートを指定してくる。
+//   ローカル開発では環境変数が無いので、その場合は従来通り8000番を使う。
+const port = Number(Deno.env.get("PORT")) || 8000;
+
+Deno.serve({ port }, (req) => {
   const url = new URL(req.url);
 
   if (req.headers.get("upgrade") === "websocket") {
@@ -39,4 +43,4 @@ Deno.serve({ port: 8000 }, (req) => {
   });
 });
 
-console.log("WebSocketサーバーがポート8000で起動しました！");
+console.log(`WebSocketサーバーがポート${port}で起動しました！`);

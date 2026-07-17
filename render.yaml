@@ -1,0 +1,17 @@
+# Render Blueprint。
+# リポジトリのルートに置いておくと、Renderの「New +」→「Blueprint」から
+# このファイルを読み込ませるだけでサービス設定を再現できる（手動設定でも問題ない）。
+#
+# 参考: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: shiritori-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: . # ★backendがshared/を参照するため、ルートをコンテキストにする
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 8000

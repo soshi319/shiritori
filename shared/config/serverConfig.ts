@@ -4,7 +4,7 @@
  * 使い方:
  *  1. 一番手っ取り早いのは下の DEFAULT_SERVER_HOST を書き換えること。
  *     ローカルサーバーなら "localhost:8000"、
- *     本番（Deno Deploy等）なら "shiritori.soshi319.deno.net" のように、
+ *     本番（Render等）なら "shiritori-backend-xxxx.onrender.com" のように、
  *     "ホスト:ポート" の形だけ書けばOK（http/ws か https/wss かは自動で判定する）。
  *
  *  2. コードを書き換えずに切り替えたい場合は、Viteの環境変数で上書きできる。
@@ -19,8 +19,7 @@
  */
 
 // ★ここだけ書き換えれば、アプリ全体の接続先を切り替えられる
-// const DEFAULT_SERVER_HOST = "localhost:8000";
-const DEFAULT_SERVER_HOST = "shiritori.soshi319.deno.net";
+const DEFAULT_SERVER_HOST = "localhost:8000";
 
 const SERVER_HOST = (import.meta.env.VITE_SERVER_HOST as string | undefined) ??
     DEFAULT_SERVER_HOST;
