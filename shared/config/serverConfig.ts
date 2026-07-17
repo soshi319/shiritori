@@ -19,7 +19,8 @@
  */
 
 // ★ここだけ書き換えれば、アプリ全体の接続先を切り替えられる
-const DEFAULT_SERVER_HOST = "localhost:8000";
+const DEFAULT_SERVER_HOST = "shiritori-backend.onrender.com";
+// const DEFAULT_SERVER_HOST = "localhost:8000";
 
 const SERVER_HOST = (import.meta.env.VITE_SERVER_HOST as string | undefined) ??
     DEFAULT_SERVER_HOST;
