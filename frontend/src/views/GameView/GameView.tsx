@@ -13,6 +13,7 @@ import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import type { ServerMessage, ClientMessage, PlayerState } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
+import { WS_URL } from 'shared/config/serverConfig'; // ★サーバー接続先を設定ファイルから読み込む
 
 // 再レンダリング時にタイマーが壊れるのを防ぐため、ダミー関数をコンポーネント外に固定定義
 const handleTimeUpDummy = () => {};
@@ -20,10 +21,9 @@ const handleTimeUpDummy = () => {};
 type GameViewProps = {
   changeScreen: (screen: Screen) => void;
   myCharacterId: string;
-  isCpuMode: boolean;
 };
 
-export function GameView({ changeScreen, myCharacterId, isCpuMode }: GameViewProps) {
+export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
   const statusRef = useRef(status);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -124,14 +124,14 @@ export function GameView({ changeScreen, myCharacterId, isCpuMode }: GameViewPro
 
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
-    const socket = new WebSocket("wss://shiritori.soshi319.deno.net");
+    const socket = new WebSocket(WS_URL);
     let pingInterval: number;
 
     socket.onopen = () => {
       setStatus('WAITING');
       const joinMsg: ClientMessage = {
         type: 'JOIN_ROOM',
-        payload: { playerName: 'プレイヤー', characterId: myCharacterId, isCpuMode: isCpuMode},
+        payload: { playerName: 'プレイヤー', characterId: myCharacterId },
       };
       socket.send(JSON.stringify(joinMsg));
 

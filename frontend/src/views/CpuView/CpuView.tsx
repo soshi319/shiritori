@@ -192,8 +192,14 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
         if (candidates && candidates.length > 0) {
           const finisher = candidates[candidates.length - 1];
 
-          // 自分のHPが必殺技の目安（30以下）なら、まだ使っていない最後の「ん」単語で一閃を狙う
-          if (opponentState.hp <= 30 && finisher.endsWith('ん') && !usedWords.has(finisher)) {
+          // 自分のHPが必殺技の目安（30以下）で、かつ本当に一閃が成立する
+          // ちょうど4文字の「ん」終わり単語がまだ残っていれば、それを狙って選ぶ
+          if (
+            opponentState.hp <= 30 &&
+            finisher.length === 4 &&
+            finisher.endsWith('ん') &&
+            !usedWords.has(finisher)
+          ) {
             chosenWord = finisher;
           } else {
             let idx = cpuMoraIndexRef.current.get(requiredStartNow) ?? 0;
@@ -453,6 +459,15 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
       {poisonBurst !== 0 && <PoisonBurstEffect />}
 
       <div className="flex-1 overflow-y-auto flex flex-col items-center gap-6 p-6">
+        <div className="w-full flex justify-start">
+          <button
+            onClick={() => changeScreen('title')}
+            className="text-sm text-zinc-700 hover:text-zinc-900 font-medium transition-colors"
+          >
+            ← タイトルへ戻る
+          </button>
+        </div>
+
         <div className="w-full flex justify-between gap-4">
           {myState && (
             <HpBar

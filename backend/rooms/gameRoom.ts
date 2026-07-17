@@ -12,7 +12,7 @@ import {
 } from "shared/logic/shiritoriValidator.ts";
 import { resolveTurn } from "../game/turnResolver.ts";
 import { GAME_CONFIG } from "shared/config/gameConfig.ts";
-import { CPU_DICTIONARY } from "shared/data/cpuDictionary.ts";
+import { CPU_DICTIONARY } from "shared/data/cpuDictionary.ts"; // ★CPU用の固定辞書（フロントと共通）
 
 type Client = {
   socket: WebSocket;

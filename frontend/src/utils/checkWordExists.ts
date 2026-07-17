@@ -1,9 +1,9 @@
+import { CHECK_WORD_API_URL } from "shared/config/serverConfig";
+
 export async function checkWordExists(word: string): Promise<boolean> {
     try {
         const response = await fetch(
-            `https://shiritori.soshi319.deno.net/api/check-word?word=${
-                encodeURIComponent(word)
-            }`,
+            `${CHECK_WORD_API_URL}?word=${encodeURIComponent(word)}`,
         );
         const data = await response.json();
         return data.exists as boolean;

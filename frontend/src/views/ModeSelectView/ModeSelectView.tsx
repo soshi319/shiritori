@@ -29,7 +29,7 @@ export function ModeSelectView({ changeScreen, setCpuMode }: ModeSelectViewProps
             changeScreen('characterSelect');
           }}
         >
-          CPU対戦（テスト用）
+          CPU対戦
         </button>
 
         {/* オンラインマルチ対戦ボタン */}
