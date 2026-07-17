@@ -137,7 +137,7 @@ deno task dev
 
 ### サーバーの接続先を変更する
 
-フロントエンドが接続するサーバー（WebSocket／辞書チェックAPI）は、`frontend/src/config/serverConfig.ts`の1箇所にまとめてあります。
+フロントエンドが接続するサーバー（WebSocket／辞書チェックAPI）は、`shared/config/serverConfig.ts`の1箇所にまとめてあります。
 
 - **コードを直接書き換える場合**：同ファイル内の`DEFAULT_SERVER_HOST`を書き換えます。
   - ローカルのバックエンドに繋ぐ場合：`"localhost:8000"`
