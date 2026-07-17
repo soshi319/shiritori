@@ -9,7 +9,7 @@ export function TitleView({ changeScreen, onOpenRules }: TitleViewProps) {
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-8 bg-stone-100 transition-colors duration-500">
       <h1 className="text-5xl font-extrabold tracking-normal text-stone-800">
-        しりとりバトル
+        しりとりーぐ
       </h1>
 
       <div className="flex flex-col gap-3 w-full max-w-xs px-4">
