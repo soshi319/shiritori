@@ -313,7 +313,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   }
 
   if (status === 'CONNECTING') {
-    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーに接続中...</div>;
+    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーを起動しています。初回は最大1分ほどかかる場合があります…</div>;
   }
 
   if (status === 'WAITING') {
