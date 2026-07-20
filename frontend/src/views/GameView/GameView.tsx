@@ -14,6 +14,7 @@ import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import type { ServerMessage, ClientMessage, PlayerState } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
 import { WS_URL } from 'shared/config/serverConfig'; // ★サーバー接続先を設定ファイルから読み込む
+import { CharacterSkillPopover } from '../../components/game/CharacterSkillPopover';
 
 // 再レンダリング時にタイマーが壊れるのを防ぐため、ダミー関数をコンポーネント外に固定定義
 const handleTimeUpDummy = () => {};
@@ -51,6 +52,8 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   const [poisonBurst, setPoisonBurst] = useState(0);
 
   const myCharacter = characters.find((c) => c.id === myCharacterId)!;
+  const opponentCharacter = characters.find((c) => c.id === opponentState?.characterId) || characters[0];
+  const [openSkillFor, setOpenSkillFor] = useState<'me' | 'opponent' | null>(null);
 
   type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
 
@@ -313,7 +316,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
   }
 
   if (status === 'CONNECTING') {
-    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーを起動しています。<br />初回は最大1分ほどかかる場合があります…</div>;
+    return <div className="fixed inset-0 flex items-center justify-center flex-col gap-4 bg-zinc-400 text-zinc-900">サーバーに接続中...</div>;
   }
 
   if (status === 'WAITING') {
@@ -396,12 +399,24 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
               {effect?.type === 'reflect' && isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
               )}
-              <img
-                src={`/images/${myState.characterId}.png`}
-                alt="自分のキャラクター"
-                className="w-full h-full object-contain -scale-x-100 drop-shadow-md"
-              />
-            </div>
+              <button
+                onClick={() => setOpenSkillFor((prev) => (prev === 'me' ? null : 'me'))}
+                className="w-full h-full"
+                aria-label={`${myCharacter.name}の固有スキルを見る`}
+              >
+                <img
+                  src={`/images/${myState.characterId}.png`}
+                  alt="自分のキャラクター"
+                  className="w-full h-full object-contain -scale-x-100 drop-shadow-md"
+                />
+              </button>
+              {openSkillFor === 'me' && (
+                <CharacterSkillPopover
+                  character={myCharacter}
+                  align="left"
+                  onClose={() => setOpenSkillFor(null)}
+                />
+              )}            </div>
           )}
 
           {opponentState && (
@@ -416,12 +431,24 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
               {effect?.type === 'reflect' && !isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
               )}
-              <img
-                src={`/images/${opponentState.characterId}.png`}
-                alt="相手のキャラクター"
-                className="w-full h-full object-contain drop-shadow-md"
-              />
-            </div>
+              <button
+                onClick={() => setOpenSkillFor((prev) => (prev === 'opponent' ? null : 'opponent'))}
+                className="w-full h-full"
+                aria-label={`${opponentCharacter.name}の固有スキルを見る`}
+              >
+                <img
+                  src={`/images/${opponentState.characterId}.png`}
+                  alt="相手のキャラクター"
+                  className="w-full h-full object-contain drop-shadow-md"
+                />
+              </button>
+              {openSkillFor === 'opponent' && (
+                <CharacterSkillPopover
+                  character={opponentCharacter}
+                  align="right"
+                  onClose={() => setOpenSkillFor(null)}
+                />
+              )}            </div>
           )}
         </div>
 

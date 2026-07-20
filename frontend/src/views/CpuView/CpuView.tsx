@@ -11,6 +11,7 @@ import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
+import { CharacterSkillPopover } from '../../components/game/CharacterSkillPopover';
 import type { PlayerState } from 'shared/types/messageTypes';
 import {
   getRequiredNextStart,
@@ -70,6 +71,8 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
   const consecutiveTimeoutsRef = useRef(0);
 
   const myCharacter = characters.find((c) => c.id === myState?.characterId) || characters[0];
+  const opponentCharacter = characters.find((c) => c.id === opponentState?.characterId) || characters[0];
+  const [openSkillFor, setOpenSkillFor] = useState<'me' | 'opponent' | null>(null);
 
   const requiredStartNow = getRequiredNextStart(currentWord);
   const isMyTurn = myState !== null && activePlayerId === myState.id;
@@ -512,12 +515,24 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
               {effect?.type === 'reflect' && isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
               )}
-              <img
-                src={`/images/${myState.characterId}.png`}
-                alt="自分のキャラクター"
-                className="w-full h-full object-contain -scale-x-100 drop-shadow-md"
-              />
-            </div>
+              <button
+                onClick={() => setOpenSkillFor((prev) => (prev === 'me' ? null : 'me'))}
+                className="w-full h-full"
+                aria-label={`${myCharacter.name}の固有スキルを見る`}
+              >
+                <img
+                  src={`/images/${myState.characterId}.png`}
+                  alt="自分のキャラクター"
+                  className="w-full h-full object-contain -scale-x-100 drop-shadow-md"
+                />
+              </button>
+              {openSkillFor === 'me' && (
+                <CharacterSkillPopover
+                  character={myCharacter}
+                  align="left"
+                  onClose={() => setOpenSkillFor(null)}
+                />
+              )}            </div>
           )}
 
           {opponentState && (
@@ -532,12 +547,24 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
               {effect?.type === 'reflect' && !isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
               )}
-              <img
-                src={`/images/${opponentState.characterId}.png`}
-                alt="相手のキャラクター"
-                className="w-full h-full object-contain drop-shadow-md"
-              />
-            </div>
+              <button
+                onClick={() => setOpenSkillFor((prev) => (prev === 'opponent' ? null : 'opponent'))}
+                className="w-full h-full"
+                aria-label={`${opponentCharacter.name}の固有スキルを見る`}
+              >
+                <img
+                  src={`/images/${opponentState.characterId}.png`}
+                  alt="相手のキャラクター"
+                  className="w-full h-full object-contain drop-shadow-md"
+                />
+              </button>
+              {openSkillFor === 'opponent' && (
+                <CharacterSkillPopover
+                  character={opponentCharacter}
+                  align="right"
+                  onClose={() => setOpenSkillFor(null)}
+                />
+              )}            </div>
           )}
         </div>
 
