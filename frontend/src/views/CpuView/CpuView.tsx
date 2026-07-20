@@ -634,8 +634,9 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
               </div>
             ) : (
               <WordInputField
+                key={turnId}
                 onSubmit={handleSubmitWord}
-                disabled={isChecking}
+                disabled={false}
                 isMyTurn={isMyTurn ?? false}
                 requiredStart={requiredStartNow}
               />

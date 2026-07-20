@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 type WordInputFieldProps = {
   onSubmit: (word: string) => void;
@@ -9,6 +9,19 @@ type WordInputFieldProps = {
 
 export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredStart }: WordInputFieldProps) {
   const [word, setWord] = useState('');
+  // 1. input要素を参照するためのrefを作成
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 2. 自分のターンで、入力可能な状態になったら自動でフォーカスする
+  useEffect(() => {
+    if (isMyTurn && !disabled) {
+      // 画面の描画完了後に確実にフォーカスを当てるためのわずかな遅延
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isMyTurn, disabled]);
 
   function handleSubmit() {
     const trimmedWord = word.trim();
@@ -36,6 +49,8 @@ export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredS
 
       <div className="flex gap-2">
         <input
+          // 3. input要素にrefを紐付ける
+          ref={inputRef}
           type="text"
           value={word}
           onChange={(e) => setWord(e.target.value)}

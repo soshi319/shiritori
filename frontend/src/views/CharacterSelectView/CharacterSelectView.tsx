@@ -52,14 +52,14 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   const selectedCharacter = characters[selectedIndex];
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto">
+    <div
+      className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <h1 className="text-3xl font-extrabold tracking-normal text-stone-800">キャラクター選択</h1>
 
-      <div
-        className="relative w-full max-w-md overflow-hidden"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      <div className="relative w-full max-w-md overflow-hidden">
         <button
           onClick={goToPrev}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-xl px-4 py-3 bg-white/80 border border-stone-200 text-stone-700 rounded-full hover:bg-white transition-colors shadow-sm"
@@ -87,7 +87,7 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
                 <img
                   src={`/images/${character.id}.png`}
                   alt={character.name}
-                  className="w-full h-full object-contain drop-shadow-md" 
+                  className="w-full h-full object-contain drop-shadow-md"
                 />
               </div>
               <h2 className="text-2xl font-bold text-stone-800">{character.name}</h2>
