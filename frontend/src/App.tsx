@@ -6,14 +6,18 @@ import { GameView } from './views/GameView';
 import { RuleView } from './views/RuleView';
 import { PracticeView } from './views/PracticeView';
 import { CpuView } from './views/CpuView';
+import { RankingView } from './views/RankingView';
 import { Modal } from './components/common/Modal';
 import type { Screen } from './types/screen';
+import { getPlayerName } from './utils/playerName';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('title');
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isCpuMode, setIsCpuMode] = useState<boolean>(false);
+  // ★タイトル画面でいつでも変更できるプレイヤー名。初期値はlocalStorageから復元する
+  const [playerName, setPlayerName] = useState<string>(() => getPlayerName());
 
   return (
     <div className="min-h-screen bg-stone-100 text-zinc-950 font-sans flex items-center justify-center">
@@ -21,6 +25,8 @@ function App() {
         <TitleView
           changeScreen={setCurrentScreen}
           onOpenRules={() => setIsRuleModalOpen(true)}
+          playerName={playerName}
+          onChangePlayerName={setPlayerName}
         />
       )}
 
@@ -35,17 +41,18 @@ function App() {
         />
       )}
 
-      {/* 2. isCpuModeの有無によって表示するコンポーネントを出し分けます */}
       {currentScreen === 'game' && selectedCharacterId && (
         isCpuMode ? (
           <CpuView
             changeScreen={setCurrentScreen}
             selectedCharId={selectedCharacterId}
+            playerName={playerName}
           />
         ) : (
           <GameView
             changeScreen={setCurrentScreen}
             myCharacterId={selectedCharacterId}
+            playerName={playerName}
           />
         )
       )}
@@ -53,6 +60,13 @@ function App() {
       {currentScreen === 'practice' && (
         <PracticeView
           changeScreen={setCurrentScreen}
+        />
+      )}
+
+      {currentScreen === 'ranking' && (
+        <RankingView
+          changeScreen={setCurrentScreen}
+          playerName={playerName}
         />
       )}
 

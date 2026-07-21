@@ -13,6 +13,13 @@ export type PlayerState = {
 // deno-lint-ignore no-explicit-any
 export type EffectData = any; // 必要に応じて詳細な型を定義してください
 
+export type RatingChange = {
+  name: string;
+  before: number;
+  after: number;
+  delta: number;
+};
+
 export type ClientMessage =
   | {
     type: "JOIN_ROOM";
@@ -89,5 +96,10 @@ export type ServerMessage =
         | "bakudan_failed"
         | "poison"
         | "disconnect";
+      // ★CPU対戦・レート未設定時はundefined（レート対象外）
+      ratings?: {
+        winner: RatingChange;
+        loser: RatingChange;
+      };
     };
   };

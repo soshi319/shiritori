@@ -2,7 +2,7 @@ import type { Screen } from '../../types/screen';
 
 type ModeSelectViewProps = {
   changeScreen: (screen: Screen) => void;
-  setCpuMode: (isCpu: boolean) => void; // ★親コンポーネントから状態を受け取るためのPropsを追加
+  setCpuMode: (isCpu: boolean) => void;
 };
 
 export function ModeSelectView({ changeScreen, setCpuMode }: ModeSelectViewProps) {
@@ -20,27 +20,35 @@ export function ModeSelectView({ changeScreen, setCpuMode }: ModeSelectViewProps
         >
           練習モード
         </button>
-        
+
         {/* CPU対戦モードボタン */}
         <button
           className="w-full px-4 py-3.5 rounded-xl text-sm font-semibold text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-sm transition-all duration-200"
           onClick={() => {
-            setCpuMode(true); // CPU戦フラグをON
+            setCpuMode(true);
             changeScreen('characterSelect');
           }}
         >
           CPU対戦
         </button>
 
-        {/* オンラインマルチ対戦ボタン */}
+        {/* オンラインマルチ対戦ボタン（レート対象） */}
         <button
           className="w-full px-4 py-3.5 rounded-xl text-sm font-semibold text-center bg-indigo-800 hover:bg-indigo-700 text-indigo-100 shadow-sm transition-all duration-200"
           onClick={() => {
-            setCpuMode(false); // 通常マルチプレイ
+            setCpuMode(false);
             changeScreen('characterSelect');
           }}
         >
           オンライン対戦
+        </button>
+
+        {/* ランキングボタン */}
+        <button
+          className="w-full px-4 py-3 rounded-xl text-sm font-semibold text-center bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 shadow-sm transition-all duration-200"
+          onClick={() => changeScreen('ranking')}
+        >
+          🏆 ランキング
         </button>
 
         {/* タイトルへ戻るボタン */}

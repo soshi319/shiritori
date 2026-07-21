@@ -11,7 +11,7 @@ import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
-import type { ServerMessage, ClientMessage, PlayerState } from 'shared/types/messageTypes';
+import type { ServerMessage, ClientMessage, PlayerState, RatingChange } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
 import { WS_URL } from 'shared/config/serverConfig'; // ★サーバー接続先を設定ファイルから読み込む
 import { CharacterSkillPopover } from '../../components/game/CharacterSkillPopover';
@@ -22,9 +22,10 @@ const handleTimeUpDummy = () => {};
 type GameViewProps = {
   changeScreen: (screen: Screen) => void;
   myCharacterId: string;
+  playerName: string;
 };
 
-export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
+export function GameView({ changeScreen, myCharacterId, playerName }: GameViewProps) {
   const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
   const statusRef = useRef(status);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -44,6 +45,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
 
   const [gameOverReason, setGameOverReason] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [ratings, setRatings] = useState<{ winner: RatingChange; loser: RatingChange } | null>(null);
 
   const [isWaitingSync, setIsWaitingSync] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
       setStatus('WAITING');
       const joinMsg: ClientMessage = {
         type: 'JOIN_ROOM',
-        payload: { playerName: 'プレイヤー', characterId: myCharacterId },
+        payload: { playerName, characterId: myCharacterId },
       };
       socket.send(JSON.stringify(joinMsg));
 
@@ -279,6 +281,7 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
         case 'GAME_OVER': {
           setWinnerId(msg.payload.winnerId);
           setGameOverReason(msg.payload.reason);
+          setRatings(msg.payload.ratings ?? null);
           setStatus('GAME_OVER');
           break;
         }
@@ -540,6 +543,18 @@ export function GameView({ changeScreen, myCharacterId }: GameViewProps) {
                gameOverReason === 'bakudan_failed' ? 'ばくだん自爆（即死）' :
                gameOverReason === 'poison' ? '毒によるダメージ' : '通信切断'}
             </p>
+            {ratings && myState && (() => {
+              const myRating = myState.id === winnerId ? ratings.winner : ratings.loser;
+              const isPlus = myRating.delta > 0;
+              return (
+                <p className="text-base font-bold text-zinc-900">
+                  レート: {myRating.before} → {myRating.after}{' '}
+                  <span className={isPlus ? 'text-emerald-600' : myRating.delta < 0 ? 'text-red-600' : 'text-zinc-500'}>
+                    ({isPlus ? '+' : ''}{myRating.delta})
+                  </span>
+                </p>
+              );
+            })()}
             <button
               onClick={() => changeScreen('title')}
               className="px-6 py-3 rounded-xl text-sm font-semibold tracking-wide bg-stone-800 hover:bg-stone-700 text-stone-100 transition-colors shadow-sm"

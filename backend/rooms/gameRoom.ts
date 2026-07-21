@@ -13,6 +13,7 @@ import {
 import { resolveTurn } from "../game/turnResolver.ts";
 import { GAME_CONFIG } from "shared/config/gameConfig.ts";
 import { CPU_DICTIONARY } from "shared/data/cpuDictionary.ts"; // ★CPU用の固定辞書（フロントと共通）
+import { applyMatchResult } from "../rating/ratingStore.ts"; // ★レート計算・保存
 
 type Client = {
   socket: WebSocket;
@@ -441,13 +442,40 @@ export class GameRoom {
     });
   }
 
-  private endGame(
+  private async endGame(
     winnerId: string,
     reason: "hp_zero" | "time_up" | "bakudan_failed" | "poison" | "disconnect",
   ) {
     if (this.timer) clearTimeout(this.timer);
     if (this.cpuTimer) clearTimeout(this.cpuTimer);
-    this.broadcast({ type: "GAME_OVER", payload: { winnerId, reason } });
+
+    let ratings:
+      | {
+        winner: Awaited<ReturnType<typeof applyMatchResult>>["winner"];
+        loser: Awaited<ReturnType<typeof applyMatchResult>>["loser"];
+      }
+      | undefined;
+
+    // ★CPU対戦はレート対象外。オンライン対戦のみレートを計算・保存する
+    if (!this.isCpuMode) {
+      const winnerClient = this.clients.get(winnerId);
+      const loserClient = Array.from(this.clients.values()).find((c) =>
+        c.state.id !== winnerId
+      );
+
+      if (winnerClient && loserClient) {
+        const result = await applyMatchResult(
+          winnerClient.state.name,
+          loserClient.state.name,
+        );
+        ratings = { winner: result.winner, loser: result.loser };
+      }
+    }
+
+    this.broadcast({
+      type: "GAME_OVER",
+      payload: { winnerId, reason, ratings },
+    });
     this.onRoomClose();
   }
 }

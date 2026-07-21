@@ -30,12 +30,13 @@ const HIRAGANA_ONLY_REGEX = /^[ぁ-んー]+$/;
 type CpuViewProps = {
   changeScreen: (screen: Screen) => void;
   selectedCharId: string;
+  playerName: string;
 };
 
 type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
 type LocalId = 'me' | 'cpu';
 
-export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
+export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewProps) {
   const [status, setStatus] = useState<'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('ANNOUNCING');
 
   const [myState, setMyState] = useState<PlayerState | null>(null);
@@ -92,7 +93,7 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
 
     setMyState({
       id: 'me',
-      name: 'あなた',
+      name: playerName,
       characterId: meChar.id,
       hp: meChar.maxHp + (first === 'cpu' ? GAME_CONFIG.SECOND_TURN_HP_BONUS : 0),
       maxHp: meChar.maxHp,
@@ -634,9 +635,8 @@ export function CpuView({ changeScreen, selectedCharId }: CpuViewProps) {
               </div>
             ) : (
               <WordInputField
-                key={turnId}
                 onSubmit={handleSubmitWord}
-                disabled={false}
+                disabled={isChecking}
                 isMyTurn={isMyTurn ?? false}
                 requiredStart={requiredStartNow}
               />

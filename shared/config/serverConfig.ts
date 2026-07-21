@@ -32,3 +32,5 @@ const IS_LOCAL = SERVER_HOST.startsWith("localhost") ||
 export const WS_URL = `${IS_LOCAL ? "ws" : "wss"}://${SERVER_HOST}/`;
 export const HTTP_BASE_URL = `${IS_LOCAL ? "http" : "https"}://${SERVER_HOST}`;
 export const CHECK_WORD_API_URL = `${HTTP_BASE_URL}/api/check-word`;
+export const LEADERBOARD_API_URL = `${HTTP_BASE_URL}/api/leaderboard`;
+export const RATING_API_URL = `${HTTP_BASE_URL}/api/rating`;
