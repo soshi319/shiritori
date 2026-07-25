@@ -10,14 +10,11 @@ type TitleViewProps = {
   onChangePlayerName: (name: string) => void;
 };
 
-// 背景を流れる、実際につながっているしりとりチェーン
+// 背景を流れるしりとりチェーン
 const WORD_CHAIN = [
   'しりとり', 'りんご', 'ごりら', 'らくだ', 'だんご', 'ごま',
   'まくら', 'らっぱ', 'ぱんだ', 'だちょう', 'うちわ', 'わに', 'にじ', 'じてん',
 ];
-
-// タイトルの文字配列（色は統一）
-const TITLE_CHARS = ['し', 'り', 'と', 'リ', 'ー', 'グ'];
 
 export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlayerName }: TitleViewProps) {
   const [inputValue, setInputValue] = useState(playerName);
@@ -43,7 +40,6 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
           from { opacity: 0; transform: translateY(48px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        /* 上から降ってきてバウンドするアニメーション */
         @keyframes titleShiritori_dropBounce {
           0% { opacity: 0; transform: translateY(-40px) scale(0.8); }
           50% { opacity: 1; transform: translateY(5px) scale(1.1); }
@@ -64,7 +60,7 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
         }
         .ts-drop-char {
           opacity: 0;
-          display: inline-block;
+          /* ★ここにあった display: inline-block; を削除しました！ */
           animation: titleShiritori_dropBounce 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
       `}</style>
@@ -111,24 +107,21 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
       </div>
 
       {/* メインコンテンツ */}
-      <div className="relative z-10 flex flex-col items-center gap-10 px-6 sm:px-8 py-10 sm:py-12 mx-4 rounded-3xl bg-white/80 backdrop-blur-sm shadow-lg border border-white/60">
+      <div className="relative z-10 flex flex-col items-center w-full px-6 mb-8">
         
-        {/* タイトル部分（同色で1文字ずつ降ってくる） */}
-        <div className="flex items-center justify-center whitespace-nowrap text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-stone-800 drop-shadow-sm pb-2">
-          {TITLE_CHARS.map((char, i) => (
-            <span
-              key={i}
-              className="ts-drop-char"
-              style={{ animationDelay: `${0.1 + i * 0.08}s` }}
-            >
-              {char}
-            </span>
-          ))}
+        {/* ★変更：divをシンプルにし、imgに「mx-auto」を追加して確実な中央寄せに */}
+        <div className="ts-drop-char mb-8 sm:mb-12 w-full" style={{ animationDelay: '0.1s' }}>
+          <img 
+            src="/images/logo.svg" 
+            alt="シリトリーグ" 
+            className="mx-auto w-full max-w-[340px] sm:max-w-[460px] h-auto drop-shadow-md pointer-events-none select-none px-2"
+          />
         </div>
 
-        <div className="flex flex-col gap-4 w-full max-w-xs">
+        <div className="flex flex-col gap-5 w-full max-w-xs">
+          {/* 名前入力欄 */}
           <div className="ts-rise-in flex flex-col gap-2" style={{ animationDelay: '0.6s' }}>
-            <label htmlFor="player-name" className="text-xs font-medium text-stone-500 px-1">
+            <label htmlFor="player-name" className="text-xs font-bold text-stone-600 px-1 drop-shadow-sm">
               名前（オンライン対戦で相手に表示されます）
             </label>
             <input
@@ -142,20 +135,21 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
               }}
               maxLength={12}
               placeholder="プレイヤー"
-              className="w-full px-4 py-3 bg-white border border-stone-300 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-500 text-base transition-colors shadow-sm"
+              className="w-full px-4 py-3 bg-white/95 border-2 border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-500 text-base transition-colors shadow-md"
             />
           </div>
 
+          {/* ボタン類 */}
           <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.7s' }}>
             <button
-              className="w-full px-6 py-3.5 rounded-xl text-base font-bold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full px-6 py-4 rounded-xl text-lg font-black tracking-widest text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-xl shadow-stone-800/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
               onClick={() => changeScreen('modeSelect')}
             >
               スタート
             </button>
 
             <button
-              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center bg-white text-stone-600 border border-stone-300/80 hover:bg-stone-50 shadow-sm transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl text-sm font-bold text-center bg-white/90 text-stone-600 border border-stone-300 hover:bg-stone-50 shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               onClick={onOpenRules}
             >
               ルール説明
