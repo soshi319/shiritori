@@ -1,5 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 
+// ★主な入力手段が指などの「大まかなポインタ」かどうかで、タッチ端末を判定する。
+//   マウスを持つPCではfalse、スマホ・タブレットではtrueになる。
+function isCoarsePointerDevice(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
 type WordInputFieldProps = {
   onSubmit: (word: string) => void;
   disabled?: boolean;
@@ -12,15 +19,21 @@ export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredS
   // 1. input要素を参照するためのrefを作成
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 2. 自分のターンで、入力可能な状態になったら自動でフォーカスする
+  // 2. 入力可能な状態になったら自動でフォーカスする。
+  //    PCでは攻撃/防御どちらのフェーズでもカーソルを合わせるが、
+  //    スマホは意図しないタイミングでキーボードが開かないよう、
+  //    従来通り自分の攻撃ターンの時だけにする（送信後のblur()の効果を保つため）。
   useEffect(() => {
-    if (isMyTurn && !disabled) {
-      // 画面の描画完了後に確実にフォーカスを当てるためのわずかな遅延
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
+    if (disabled) return;
+
+    const isTouch = isCoarsePointerDevice();
+    if (isTouch && !isMyTurn) return;
+
+    // 画面の描画完了後に確実にフォーカスを当てるためのわずかな遅延
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
   }, [isMyTurn, disabled]);
 
   function handleSubmit() {
@@ -29,6 +42,12 @@ export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredS
 
     onSubmit(trimmedWord);
     setWord('');
+    // ★スマホ・タブレット（タッチ端末）の時だけ、送信直後にキーボードを閉じる。
+    //   PCではカーソルが残ったままの方が楽なので、blurしない。
+    //   次に自分の番が来れば、下のuseEffectが自動でまたフォーカスしてキーボードを開く。
+    if (isCoarsePointerDevice()) {
+      inputRef.current?.blur();
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
