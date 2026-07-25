@@ -47,12 +47,13 @@ export function PracticeView({ changeScreen }: PracticeViewProps) {
 
     setError('');
 
-    if (!HIRAGANA_ONLY_REGEX.test(trimmedInput)) {
-      setError('ひらがなで入力してください');
+    const word = normalizeWordForComparison(trimmedInput);
+
+    if (!HIRAGANA_ONLY_REGEX.test(word)) {
+      setError('ひらがな・カタカナで入力してください');
       return;
     }
 
-    const word = normalizeWordForComparison(trimmedInput);
     const requiredStart = getRequiredNextStart(currentWord);
 
     if (!word.startsWith(requiredStart)) {
