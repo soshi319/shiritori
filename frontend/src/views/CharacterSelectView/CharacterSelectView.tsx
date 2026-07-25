@@ -13,7 +13,8 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   const [dragOffsetPx, setDragOffsetPx] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  const carouselRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const carouselWidthRef = useRef<HTMLDivElement>(null);
   // タッチ中の状態（再レンダリングを起こしたくないのでrefで持つ）
   const touchRef = useRef<{ startX: number; startY: number; axis: 'x' | 'y' | null }>({
     startX: 0,
@@ -43,7 +44,7 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   //   指が8px以上動くまでは縦横を判定せず、判定後「横」の時だけページ送りに追従させる。
   //   「縦」と判定された場合はpreventDefaultしないので、ページの縦スクロールがそのまま効く。
   useEffect(() => {
-    const el = carouselRef.current;
+    const el = pageRef.current;
     if (!el) return;
 
     const AXIS_LOCK_THRESHOLD = 8;
@@ -82,7 +83,8 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
       setIsDragging(false);
 
       if (touchRef.current.axis === 'x') {
-        const containerWidth = el!.getBoundingClientRect().width;
+        const containerWidth = carouselWidthRef.current?.getBoundingClientRect().width
+          ?? el!.getBoundingClientRect().width;
         const threshold = Math.min(80, containerWidth * 0.2);
 
         if (dragOffsetPx <= -threshold) goToNext();
@@ -108,10 +110,10 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
   const selectedCharacter = characters[selectedIndex];
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto">
+    <div ref={pageRef} className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto touch-pan-y">
       <h1 className="text-3xl font-extrabold tracking-normal text-stone-800">キャラクター選択</h1>
 
-      <div ref={carouselRef} className="relative w-full max-w-md overflow-hidden touch-pan-y">
+      <div ref={carouselWidthRef} className="relative w-full max-w-md overflow-hidden">
         <button
           onClick={goToPrev}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-xl px-4 py-3 bg-white/80 border border-stone-200 text-stone-700 rounded-full hover:bg-white transition-colors shadow-sm"
