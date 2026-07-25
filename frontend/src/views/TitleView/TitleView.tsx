@@ -108,12 +108,12 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
       {/* メインコンテンツ */}
       <div className="relative z-10 flex flex-col items-center w-full px-6 mb-8">
         
-        {/* SVGロゴ画像 */}
+        {/* ★ 生成したPNGロゴ画像（/images/logo.png を指定） */}
         <div className="ts-drop-char mb-8 sm:mb-12 w-full" style={{ animationDelay: '0.1s' }}>
           <img 
-            src="/images/logo.svg" 
+            src="/images/logo.png" 
             alt="シリトリーグ" 
-            className="mx-auto w-full max-w-[340px] sm:max-w-[460px] h-auto drop-shadow-md pointer-events-none select-none px-2"
+            className="mx-auto w-full max-w-[320px] sm:max-w-[420px] h-auto drop-shadow-lg pointer-events-none select-none px-2"
           />
         </div>
 
@@ -138,7 +138,7 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
             />
           </div>
 
-          {/* ボタン類（★変形アニメーションを廃止し、色の変化のみに変更） */}
+          {/* ボタン類 */}
           <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.7s' }}>
             <button
               className="w-full px-6 py-4 rounded-xl text-lg font-black tracking-widest text-center bg-stone-800 hover:bg-stone-700 active:bg-stone-900 text-stone-100 shadow-xl shadow-stone-800/20 transition-colors duration-150 select-none"
