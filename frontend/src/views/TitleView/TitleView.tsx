@@ -10,11 +10,14 @@ type TitleViewProps = {
   onChangePlayerName: (name: string) => void;
 };
 
-// 背景を流れる、実際につながっているしりとりチェーン（装飾用。ゲームロジックとは無関係）
+// 背景を流れる、実際につながっているしりとりチェーン
 const WORD_CHAIN = [
   'しりとり', 'りんご', 'ごりら', 'らくだ', 'だんご', 'ごま',
   'まくら', 'らっぱ', 'ぱんだ', 'だちょう', 'うちわ', 'わに', 'にじ', 'じてん',
 ];
+
+// タイトルの文字配列（色は統一）
+const TITLE_CHARS = ['し', 'り', 'と', 'リ', 'ー', 'グ'];
 
 export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlayerName }: TitleViewProps) {
   const [inputValue, setInputValue] = useState(playerName);
@@ -27,7 +30,6 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-stone-50 via-stone-100 to-stone-200 overflow-hidden">
-      {/* ★このコンポーネント専用のキーフレーム定義（tailwind.config.jsを触らずに完結させるため） */}
       <style>{`
         @keyframes titleShiritori_marquee {
           from { transform: translateX(0); }
@@ -41,6 +43,14 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
           from { opacity: 0; transform: translateY(48px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        /* 上から降ってきてバウンドするアニメーション */
+        @keyframes titleShiritori_dropBounce {
+          0% { opacity: 0; transform: translateY(-40px) scale(0.8); }
+          50% { opacity: 1; transform: translateY(5px) scale(1.1); }
+          75% { transform: translateY(-2px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
         .ts-marquee-track {
           animation: titleShiritori_marquee 26s linear infinite;
         }
@@ -52,9 +62,14 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
           opacity: 0;
           animation: titleShiritori_charRise 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
+        .ts-drop-char {
+          opacity: 0;
+          display: inline-block;
+          animation: titleShiritori_dropBounce 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
       `}</style>
 
-      {/* 背景：しりとりの単語チェーンが流れる帯（2本、逆方向） */}
+      {/* 背景 */}
       <div className="absolute inset-0 flex flex-col justify-between py-16 pointer-events-none select-none z-0">
         <div className="overflow-hidden whitespace-nowrap">
           <div className="ts-marquee-track inline-flex items-center gap-3 text-2xl sm:text-3xl font-black text-stone-300/70">
@@ -82,7 +97,7 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
         </div>
       </div>
 
-      {/* キャラクターのラインナップ（画面下からのぞく） */}
+      {/* キャラクター */}
       <div className="absolute bottom-0 left-0 right-0 flex justify-center items-end gap-2 sm:gap-6 px-2 z-0 pointer-events-none">
         {characters.map((c, i) => (
           <img
@@ -95,16 +110,24 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
         ))}
       </div>
 
-      {/* メインコンテンツ（背景より手前、読みやすいようカード状に） */}
-      <div className="relative z-10 flex flex-col items-center gap-10 px-8 py-12 mx-4 rounded-3xl bg-white/70 backdrop-blur-sm shadow-lg border border-white/60">
-        <div className="ts-rise-in flex flex-col items-center" style={{ animationDelay: '0.05s' }}>
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-stone-800 drop-shadow-sm">
-            しりとリーグ
-          </h1>
+      {/* メインコンテンツ */}
+      <div className="relative z-10 flex flex-col items-center gap-10 px-6 sm:px-8 py-10 sm:py-12 mx-4 rounded-3xl bg-white/80 backdrop-blur-sm shadow-lg border border-white/60">
+        
+        {/* タイトル部分（同色で1文字ずつ降ってくる） */}
+        <div className="flex items-center justify-center whitespace-nowrap text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-stone-800 drop-shadow-sm pb-2">
+          {TITLE_CHARS.map((char, i) => (
+            <span
+              key={i}
+              className="ts-drop-char"
+              style={{ animationDelay: `${0.1 + i * 0.08}s` }}
+            >
+              {char}
+            </span>
+          ))}
         </div>
 
         <div className="flex flex-col gap-4 w-full max-w-xs">
-          <div className="ts-rise-in flex flex-col gap-2" style={{ animationDelay: '0.15s' }}>
+          <div className="ts-rise-in flex flex-col gap-2" style={{ animationDelay: '0.6s' }}>
             <label htmlFor="player-name" className="text-xs font-medium text-stone-500 px-1">
               名前（オンライン対戦で相手に表示されます）
             </label>
@@ -123,7 +146,7 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
             />
           </div>
 
-          <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.25s' }}>
+          <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.7s' }}>
             <button
               className="w-full px-6 py-3.5 rounded-xl text-base font-bold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               onClick={() => changeScreen('modeSelect')}
