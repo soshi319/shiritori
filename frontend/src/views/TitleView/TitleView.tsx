@@ -96,18 +96,15 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
       </div>
 
       {/* メインコンテンツ（背景より手前、読みやすいようカード状に） */}
-      <div className="relative z-10 flex flex-col items-center gap-8 px-6 py-10 mx-4 rounded-3xl bg-white/70 backdrop-blur-sm shadow-lg border border-white/60">
-        <div className="ts-rise-in flex flex-col items-center gap-1" style={{ animationDelay: '0.05s' }}>
-          <h1 className="text-5xl font-extrabold tracking-normal text-stone-800">
+      <div className="relative z-10 flex flex-col items-center gap-10 px-8 py-12 mx-4 rounded-3xl bg-white/70 backdrop-blur-sm shadow-lg border border-white/60">
+        <div className="ts-rise-in flex flex-col items-center" style={{ animationDelay: '0.05s' }}>
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-stone-800 drop-shadow-sm">
             しりとリーグ
           </h1>
-          <p className="text-xs font-medium text-stone-500 tracking-wide">
-            しりとりで繰り広げられる熱い闘い
-          </p>
         </div>
 
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <div className="ts-rise-in flex flex-col gap-1.5" style={{ animationDelay: '0.15s' }}>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <div className="ts-rise-in flex flex-col gap-2" style={{ animationDelay: '0.15s' }}>
             <label htmlFor="player-name" className="text-xs font-medium text-stone-500 px-1">
               名前（オンライン対戦で相手に表示されます）
             </label>
@@ -122,25 +119,25 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
               }}
               maxLength={12}
               placeholder="プレイヤー"
-              className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-500 text-base transition-colors shadow-sm"
+              className="w-full px-4 py-3 bg-white border border-stone-300 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-500 text-base transition-colors shadow-sm"
             />
           </div>
 
-          <button
-            className="ts-rise-in px-6 py-3.5 rounded-xl text-sm font-semibold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-            style={{ animationDelay: '0.25s' }}
-            onClick={() => changeScreen('modeSelect')}
-          >
-            スタート
-          </button>
+          <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.25s' }}>
+            <button
+              className="w-full px-6 py-3.5 rounded-xl text-base font-bold tracking-wide text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => changeScreen('modeSelect')}
+            >
+              スタート
+            </button>
 
-          <button
-            className="ts-rise-in px-4 py-2.5 rounded-xl text-xs font-medium text-center bg-white text-stone-600 border border-stone-300/80 hover:bg-stone-50 shadow-sm transition-all duration-200"
-            style={{ animationDelay: '0.35s' }}
-            onClick={onOpenRules}
-          >
-            ルール説明
-          </button>
+            <button
+              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium text-center bg-white text-stone-600 border border-stone-300/80 hover:bg-stone-50 shadow-sm transition-all duration-200"
+              onClick={onOpenRules}
+            >
+              ルール説明
+            </button>
+          </div>
         </div>
       </div>
     </div>
