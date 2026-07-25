@@ -60,7 +60,6 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
         }
         .ts-drop-char {
           opacity: 0;
-          /* ★ここにあった display: inline-block; を削除しました！ */
           animation: titleShiritori_dropBounce 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
       `}</style>
@@ -109,7 +108,7 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
       {/* メインコンテンツ */}
       <div className="relative z-10 flex flex-col items-center w-full px-6 mb-8">
         
-        {/* ★変更：divをシンプルにし、imgに「mx-auto」を追加して確実な中央寄せに */}
+        {/* SVGロゴ画像 */}
         <div className="ts-drop-char mb-8 sm:mb-12 w-full" style={{ animationDelay: '0.1s' }}>
           <img 
             src="/images/logo.svg" 
@@ -139,17 +138,17 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
             />
           </div>
 
-          {/* ボタン類 */}
+          {/* ボタン類（★変形アニメーションを廃止し、色の変化のみに変更） */}
           <div className="ts-rise-in flex flex-col gap-3 mt-2" style={{ animationDelay: '0.7s' }}>
             <button
-              className="w-full px-6 py-4 rounded-xl text-lg font-black tracking-widest text-center bg-stone-800 hover:bg-stone-700 text-stone-100 shadow-xl shadow-stone-800/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
+              className="w-full px-6 py-4 rounded-xl text-lg font-black tracking-widest text-center bg-stone-800 hover:bg-stone-700 active:bg-stone-900 text-stone-100 shadow-xl shadow-stone-800/20 transition-colors duration-150 select-none"
               onClick={() => changeScreen('modeSelect')}
             >
               スタート
             </button>
 
             <button
-              className="w-full px-4 py-3 rounded-xl text-sm font-bold text-center bg-white/90 text-stone-600 border border-stone-300 hover:bg-stone-50 shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full px-4 py-3 rounded-xl text-sm font-bold text-center bg-white/90 text-stone-600 border border-stone-300 hover:bg-stone-100 active:bg-stone-200 shadow-md transition-colors duration-150 select-none"
               onClick={onOpenRules}
             >
               ルール説明
