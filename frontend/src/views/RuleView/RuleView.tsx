@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GAME_CONFIG } from 'shared/config/gameConfig';
+import { characters } from 'shared/data/characters';
 
 // ダメージ計算の説明用に、架空の減衰率でグラフを作る（特定キャラの数値ではなく一般例として提示）
 const SAMPLE_DECAY_RATE = 0.7;
@@ -73,15 +74,13 @@ const PAGES: Page[] = [
     content: (
       <>
         <p>交互に単語をつなげ、相手のHPを0にしたら勝利。</p>
-        <p>
-          制限時間は<strong className="text-stone-900">{GAME_CONFIG.TURN_DURATION_SEC}秒</strong>。
-          <strong className="text-stone-900">2回連続パス</strong>で敗北。
-        </p>
+        <p>制限時間は<strong className="text-stone-900">{GAME_CONFIG.TURN_DURATION_SEC}秒</strong>。</p>
+        <p><strong className="text-stone-900">2回連続パス</strong>で敗北。</p>
       </>
     ),
   },
   {
-    title: 'ダメージ計算',
+    title: '与ダメージ',
     content: (
       <>
         <p>短い単語ほど、ダメージは大きくなる。</p>
@@ -90,7 +89,7 @@ const PAGES: Page[] = [
     ),
   },
   {
-    title: '反射（カウンター）',
+    title: '攻撃の反射',
     content: (
       <>
         <p>自分の番でないとき、相手の次の単語を予測して入力する。</p>
@@ -104,21 +103,10 @@ const PAGES: Page[] = [
       <>
         <p>
           HP<strong className="text-stone-900">30以下</strong>の時、
-          <strong className="text-stone-900">4文字</strong>で「ん」に終わる言葉を出すと必殺技発動。
+          <strong className="text-stone-900">4文字</strong>かつ「ん」で終わる言葉を出すと必殺技発動。
         </p>
         <p className="text-red-700 font-semibold">
           条件を満たさず「ん」で終わると、そのまま反則負け。
-        </p>
-      </>
-    ),
-  },
-  {
-    title: '先攻・後攻',
-    content: (
-      <>
-        <p>先攻・後攻はランダムに決定。</p>
-        <p>
-          後攻には<strong className="text-stone-900">HP+{GAME_CONFIG.SECOND_TURN_HP_BONUS}</strong>のボーナス。
         </p>
       </>
     ),
@@ -128,7 +116,15 @@ const PAGES: Page[] = [
     content: (
       <>
         <p>4人から1人を選んで対戦。それぞれ固有スキルを持つ。</p>
-        <p>詳細はキャラ選択画面、または対戦中にキャラをタップ。</p>
+        <div className="flex flex-col gap-3">
+          {characters.map((c) => (
+            <div key={c.id} className="bg-stone-50 rounded-xl p-3 border border-stone-200 flex flex-col gap-0.5">
+              <p className="text-xl font-bold text-stone-900">{c.name}</p>
+              <p className="text-base font-semibold text-indigo-700">{c.skillName}</p>
+              <p className="text-lg text-stone-700 leading-snug">{c.skillDescription}</p>
+            </div>
+          ))}
+        </div>
       </>
     ),
   },

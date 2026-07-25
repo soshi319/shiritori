@@ -31,7 +31,7 @@ export const characters: Character[] = [
     maxHp: 120,
     basePower: 35,
     decayRate: 0.55,
-    skillName: "ロマン砲",
+    skillName: "根性",
     skillDescription:
       "短い単語ほど桁違いの威力になるが、長い単語では威力が大きく落ちる。HP1で1回だけ耐える。",
     skillType: "shortWordBoost",
@@ -63,7 +63,7 @@ export const characters: Character[] = [
     maxHp: 100,
     basePower: 28,
     decayRate: 0.75,
-    skillName: "コンボチェイン",
+    skillName: "コンボ",
     skillDescription:
       "同じ文字数の単語を重ねるごとに、与えるダメージが段階的に上昇していく。",
     skillType: "comboBoost",
