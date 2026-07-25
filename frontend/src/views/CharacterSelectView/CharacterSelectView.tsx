@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Screen } from '../../types/screen';
 import { characters } from 'shared/data/characters';
 
@@ -10,7 +10,16 @@ type CharacterSelectViewProps = {
 export function CharacterSelectView({ changeScreen, onConfirmCharacter }: CharacterSelectViewProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDescription, setShowDescription] = useState(false);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [dragOffsetPx, setDragOffsetPx] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const carouselRef = useRef<HTMLDivElement>(null);
+  // タッチ中の状態（再レンダリングを起こしたくないのでrefで持つ）
+  const touchRef = useRef<{ startX: number; startY: number; axis: 'x' | 'y' | null }>({
+    startX: 0,
+    startY: 0,
+    axis: null,
+  });
 
   useEffect(() => {
     setShowDescription(false);
@@ -30,36 +39,79 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
     setSelectedIndex((prev) => (prev === characters.length - 1 ? 0 : prev + 1));
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    setTouchStartX(e.touches[0].clientX);
-  }
+  // ★RuleViewと同じ操作感にするための軸ロック付きスワイプ処理。
+  //   指が8px以上動くまでは縦横を判定せず、判定後「横」の時だけページ送りに追従させる。
+  //   「縦」と判定された場合はpreventDefaultしないので、ページの縦スクロールがそのまま効く。
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX === null) return;
+    const AXIS_LOCK_THRESHOLD = 8;
+    const EDGE_RESISTANCE = 0.35; // 端をさらに引っ張った時の抵抗（このアプリは循環するので基本使わないが念のため）
 
-    const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchStartX - touchEndX;
-
-    if (diff > 50) {
-      goToNext();
-    } else if (diff < -50) {
-      goToPrev();
+    function handleTouchStart(e: TouchEvent) {
+      const t = e.touches[0];
+      touchRef.current = { startX: t.clientX, startY: t.clientY, axis: null };
+      setIsDragging(true);
     }
 
-    setTouchStartX(null);
-  }
+    function handleTouchMove(e: TouchEvent) {
+      const t = e.touches[0];
+      const dx = t.clientX - touchRef.current.startX;
+      const dy = t.clientY - touchRef.current.startY;
+
+      if (touchRef.current.axis === null) {
+        if (Math.abs(dx) < AXIS_LOCK_THRESHOLD && Math.abs(dy) < AXIS_LOCK_THRESHOLD) {
+          return;
+        }
+        touchRef.current.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+
+      if (touchRef.current.axis !== 'x') return; // 縦方向と判定→標準スクロールに任せる
+
+      e.preventDefault(); // 横方向と判定された時だけ、縦スクロールを止めて指に追従させる
+
+      // キャラクターは先頭/末尾が循環するので基本は抵抗をかけないが、
+      // 1体しかいない等の将来的な変化に備えて同じロジックを残しておく
+      const atLeftEdge = characters.length <= 1 && dx > 0;
+      const atRightEdge = characters.length <= 1 && dx < 0;
+      setDragOffsetPx(atLeftEdge || atRightEdge ? dx * EDGE_RESISTANCE : dx);
+    }
+
+    function handleTouchEnd() {
+      setIsDragging(false);
+
+      if (touchRef.current.axis === 'x') {
+        const containerWidth = el!.getBoundingClientRect().width;
+        const threshold = Math.min(80, containerWidth * 0.2);
+
+        if (dragOffsetPx <= -threshold) goToNext();
+        else if (dragOffsetPx >= threshold) goToPrev();
+      }
+
+      setDragOffsetPx(0);
+      touchRef.current.axis = null;
+    }
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragOffsetPx]);
 
   const selectedCharacter = characters[selectedIndex];
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="fixed inset-0 flex flex-col items-center gap-8 p-8 w-full bg-stone-100 text-stone-800 overflow-y-auto">
       <h1 className="text-3xl font-extrabold tracking-normal text-stone-800">キャラクター選択</h1>
 
-      <div className="relative w-full max-w-md overflow-hidden">
+      <div ref={carouselRef} className="relative w-full max-w-md overflow-hidden touch-pan-y">
         <button
           onClick={goToPrev}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-xl px-4 py-3 bg-white/80 border border-stone-200 text-stone-700 rounded-full hover:bg-white transition-colors shadow-sm"
@@ -75,8 +127,11 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
         </button>
 
         <div
-          className="flex transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${selectedIndex * 100}%)` }}
+          className="flex"
+          style={{
+            transform: `translateX(calc(-${selectedIndex * 100}% + ${dragOffsetPx}px))`,
+            transition: isDragging ? 'none' : 'transform 300ms ease-out',
+          }}
         >
           {characters.map((character) => (
             <div
