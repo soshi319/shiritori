@@ -87,9 +87,9 @@ export function ModeSelectView({ changeScreen, setCpuMode }: ModeSelectViewProps
             オンライン対戦
           </button>
 
-          {/* CPU対戦（知的なAI戦をイメージした深みのあるティール/青緑） */}
+          {/* CPU対戦（知的なAI戦をイメージした深みのあるティール/青緑 + 影を少し強調） */}
           <button
-            className="ms-rise-in w-full px-6 py-3.5 rounded-xl text-sm font-bold tracking-wide text-center bg-teal-700 hover:bg-teal-600 text-teal-50 shadow-md shadow-teal-900/10 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] antialiased transform-gpu will-change-transform"
+            className="ms-rise-in w-full px-6 py-3.5 rounded-xl text-sm font-bold tracking-wide text-center bg-teal-700 hover:bg-teal-600 text-teal-50 shadow-lg shadow-teal-900/30 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] antialiased transform-gpu will-change-transform"
             style={{ animationDelay: '0.25s' }}
             onClick={() => {
               setCpuMode(true);
