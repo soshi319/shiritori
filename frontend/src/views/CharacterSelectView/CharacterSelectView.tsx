@@ -213,16 +213,16 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
             {selectedCharacter.flavorText}
           </p>
 
-          {/* ステータス領域 */}
+          {/* ステータス領域：縦幅を抑えるために padding, gap, 行送り(leading-none) を最適化 */}
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-100 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-bold text-stone-400 tracking-wider">MAX HP</span>
-              <span className="text-lg font-black text-stone-800">{selectedCharacter.maxHp}</span>
+            <div className="bg-stone-50 rounded-lg py-1.5 px-2 border border-stone-100 flex flex-col items-center justify-center gap-0.5">
+              <span className="text-[10px] font-bold text-stone-400 tracking-wider leading-none mt-0.5">MAX HP</span>
+              <span className="text-base font-black text-stone-800 leading-none">{selectedCharacter.maxHp}</span>
             </div>
 
-            <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-100 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-bold text-stone-400 tracking-wider">ATK (基本威力)</span>
-              <span className="text-lg font-black text-stone-800">{selectedCharacter.basePower}</span>
+            <div className="bg-stone-50 rounded-lg py-1.5 px-2 border border-stone-100 flex flex-col items-center justify-center gap-0.5">
+              <span className="text-[10px] font-bold text-stone-400 tracking-wider leading-none mt-0.5">ATK (基本威力)</span>
+              <span className="text-base font-black text-stone-800 leading-none">{selectedCharacter.basePower}</span>
             </div>
           </div>
 
