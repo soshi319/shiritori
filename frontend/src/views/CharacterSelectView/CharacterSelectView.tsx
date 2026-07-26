@@ -259,7 +259,7 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
           }}
           className="w-full py-3.5 px-6 rounded-2xl font-bold text-base tracking-wide shadow-md transition-all duration-200 bg-stone-800 text-white hover:bg-stone-700 hover:shadow-lg active:bg-stone-900 active:scale-[0.98] flex items-center justify-center gap-2"
         >
-          <span>このキャラクターで対戦する</span>
+          <span>このキャラクターで対戦</span>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
