@@ -221,7 +221,7 @@ export function CharacterSelectView({ changeScreen, onConfirmCharacter }: Charac
             </div>
 
             <div className="bg-stone-50 rounded-lg py-1.5 px-2 border border-stone-100 flex flex-col items-center justify-center gap-0.5">
-              <span className="text-[10px] font-bold text-stone-400 tracking-wider leading-none mt-0.5">ATK (基本威力)</span>
+              <span className="text-[10px] font-bold text-stone-400 tracking-wider leading-none mt-0.5">ATK</span>
               <span className="text-base font-black text-stone-800 leading-none">{selectedCharacter.basePower}</span>
             </div>
           </div>

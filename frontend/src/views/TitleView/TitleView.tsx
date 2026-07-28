@@ -108,12 +108,21 @@ export function TitleView({ changeScreen, onOpenRules, playerName, onChangePlaye
       {/* メインコンテンツ */}
       <div className="relative z-10 flex flex-col items-center w-full px-6 mb-8">
         
-        {/* ★ 生成したPNGロゴ画像（/images/logo.png を指定） */}
+        {/* ★ タイトルロゴ */}
         <div className="ts-drop-char mb-8 sm:mb-12 w-full" style={{ animationDelay: '0.1s' }}>
+          {/* 本番用の画像ロゴ（後ですぐ戻せるように待機）
           <img 
             src="/images/logo.png" 
             alt="シリトリーグ" 
             className="mx-auto w-full max-w-[320px] sm:max-w-[420px] h-auto drop-shadow-lg pointer-events-none select-none px-2"
+          />
+          */}
+
+          {/* シンプルなSVGロゴ（今回追加） */}
+          <img
+            src="/images/logo.svg"
+            alt="シリトリーグ"
+            className="mx-auto w-full max-w-[300px] sm:max-w-[400px] h-auto drop-shadow-md pointer-events-none select-none px-2"
           />
         </div>
 
