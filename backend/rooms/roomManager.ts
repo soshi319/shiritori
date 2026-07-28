@@ -1,11 +1,25 @@
 import { GameRoom } from "./gameRoom.ts";
-import type { ClientMessage } from "../../shared/types/messageTypes.ts";
 
 type WaitingPlayer = {
   socket: WebSocket;
   name: string;
   characterId: string;
 };
+
+// ★RoomManager が実際に処理するメッセージのみをここでローカルに定義する。
+// ClientMessage（shared側の型）は SUBMIT_WORD 等ゲーム中のメッセージも含む
+// 広い型で、PING や isCpuMode を含む JOIN_ROOM の形とは一致しないため、
+// ここでは受信するメッセージだけに絞った専用の型を使う。
+type IncomingMessage =
+  | { type: "PING" }
+  | {
+    type: "JOIN_ROOM";
+    payload: {
+      playerName: string;
+      characterId: string;
+      isCpuMode?: boolean;
+    };
+  };
 
 export class RoomManager {
   private waitingPlayer: WaitingPlayer | null = null;
@@ -19,8 +33,7 @@ export class RoomManager {
   public handleConnection(socket: WebSocket) {
     socket.onmessage = (event) => {
       try {
-        // payload 内の isCpuMode フラグを許容するため、一時的に any でパースします
-        const message = JSON.parse(event.data) as any;
+        const message = JSON.parse(event.data) as IncomingMessage;
 
         if (message.type === "PING") {
           socket.send(JSON.stringify({ type: "PONG" }));
@@ -87,6 +100,20 @@ export class RoomManager {
     }
 
     // 通常のオンライン対戦モード（既存のマッチングロジック）
+
+    // ★アプリの強制終了・バックグラウンド放置などで onclose が発火しないまま
+    // 待機エントリだけが残ってしまうケースへの対策。
+    // ・ソケットが既に OPEN でない（切断済み）
+    // ・そもそも今回リクエストしてきた本人と同一ソケット（多重リクエスト）
+    // のいずれかに該当する場合は、古い待機エントリを無効なものとして破棄する。
+    if (
+      this.waitingPlayer &&
+      (this.waitingPlayer.socket.readyState !== WebSocket.OPEN ||
+        this.waitingPlayer.socket === socket)
+    ) {
+      this.waitingPlayer = null;
+    }
+
     if (this.waitingPlayer) {
       const p1 = this.waitingPlayer;
       const p2 = { socket, name, characterId };
