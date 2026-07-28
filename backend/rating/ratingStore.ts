@@ -50,6 +50,24 @@ async function setRating(name: string, rating: number): Promise<void> {
   await upstashCommand(["ZADD", RATING_KEY, rating, name]);
 }
 
+/**
+ * 指定したプレイヤー名のレートを初期値（DEFAULT_RATING）に戻す。
+ * 対象がまだ一度もレートを保存したことがない場合も、新規にDEFAULT_RATINGで登録される。
+ * 管理用途（サポート対応・不正対策など）で個別に呼び出すことを想定。
+ */
+export async function resetRating(name: string): Promise<void> {
+  await setRating(name, DEFAULT_RATING);
+}
+
+/**
+ * 指定したプレイヤー名のレートエントリ自体をランキングから削除する。
+ * resetRating と異なり、削除後はリーダーボードに一切表示されなくなる
+ * （次に対戦するまで getRating は DEFAULT_RATING を返す）。
+ */
+export async function removeRating(name: string): Promise<void> {
+  await upstashCommand(["ZREM", RATING_KEY, name]);
+}
+
 function calculateEloDelta(
   myRating: number,
   opponentRating: number,
