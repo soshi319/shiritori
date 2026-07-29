@@ -601,9 +601,6 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
               {effect?.type === 'reflect' && isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
               )}
-              {myAnim === 'DEFEATED' && (
-                <span className="absolute -top-2 -right-1 text-2xl drop-shadow pointer-events-none select-none">👻</span>
-              )}
               <button
                 onClick={() => setOpenSkillFor((prev) => (prev === 'me' ? null : 'me'))}
                 className="w-full h-full"
@@ -638,9 +635,6 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
             >
               {effect?.type === 'reflect' && !isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
-              )}
-              {opponentAnim === 'DEFEATED' && (
-                <span className="absolute -top-2 -left-1 text-2xl drop-shadow pointer-events-none select-none">👻</span>
               )}
               <button
                 onClick={() => setOpenSkillFor((prev) => (prev === 'opponent' ? null : 'opponent'))}
