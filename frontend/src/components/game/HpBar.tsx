@@ -36,17 +36,13 @@ export function HpBar({ name, currentHp, maxHp, badge }: HpBarProps) {
     : 0;
 
   return (
-      <div className="w-full max-w-md text-zinc-900">
-        {/* 変更箇所: flex-nowrap と gap-1.5（少し隙間を詰める）を追加 */}
+      // ★親側で flex-1 / min-w-0 のコンテナに包んでもらう前提。
+      //   ここでは min-w-0 を付けて、名前が長くてもこのバー自体の幅が
+      //   親の割り当て分（2本で均等）より広がらないようにする。
+      <div className="w-full min-w-0 text-zinc-900">
         <div className="flex justify-between items-center mb-1 text-sm flex-nowrap gap-1.5">
-          
-          {/* 左側：名前とバッジ。ここも flex-nowrap を指定して改行を防止 */}
-          <div className="flex items-center flex-nowrap gap-1.5 min-w-0 overflow-hidden">
-            <span className="font-extrabold whitespace-nowrap shrink-0">{name}</span>
-            <div className="flex items-center flex-nowrap gap-1 overflow-hidden">
-              {badge}
-            </div>
-          </div>
+          {/* ★変更: 名前は truncate（省略記号付き1行）にして、長い名前でもバーの幅に影響させない */}
+          <span className="font-extrabold truncate min-w-0">{name}</span>
 
           {/* 右側：HP表示。whitespace-nowrap (文字の改行禁止) と shrink-0 (縮小禁止) を追加 */}
           <span className={`${isOverHealed ? 'text-cyan-600 font-bold' : 'font-semibold'} whitespace-nowrap shrink-0 text-xs sm:text-sm`}>
@@ -78,6 +74,14 @@ export function HpBar({ name, currentHp, maxHp, badge }: HpBarProps) {
           />
         )}
       </div>
+
+      {/* ★変更: バッジ類は名前の隣ではなく、バーの下に並べる。
+          名前が長くても2本のバーの幅を揃えたいので、横方向を圧迫する要素をここに集約する */}
+      {badge && (
+        <div className="flex items-center flex-wrap gap-1 mt-1 min-h-[20px]">
+          {badge}
+        </div>
+      )}
     </div>
   );
 }

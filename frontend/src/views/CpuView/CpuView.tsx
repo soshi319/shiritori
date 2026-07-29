@@ -36,7 +36,7 @@ type CpuViewProps = {
   playerName: string;
 };
 
-type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE' | 'KO' | 'SELF_DESTRUCT';
+type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE' | 'KO' | 'SELF_DESTRUCT' | 'DEFEATED';
 type LocalId = 'me' | 'cpu';
 
 export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewProps) {
@@ -172,8 +172,18 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       setGameOverReason(pendingGameOver.reason);
       setVictoryCutIn(null);
       setSelfDestruct(null);
-      setMyAnim('IDLE');
-      setOpponentAnim('IDLE');
+
+      // ★結果画面（タイトルへ戻るボタンが出ている状態）では、
+      //   両方をIDLEに戻して「復活」したように見せず、
+      //   負けた側は半透明・グレーの幽霊状態のまま残す
+      if (pendingGameOver.winnerId === 'me') {
+        setMyAnim('IDLE');
+        setOpponentAnim('DEFEATED');
+      } else {
+        setOpponentAnim('IDLE');
+        setMyAnim('DEFEATED');
+      }
+
       setStatus('GAME_OVER');
     }, 2200);
     return () => clearTimeout(timer);
@@ -305,11 +315,15 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
         const winner: LocalId = isAttackerMe ? 'cpu' : 'me';
 
         // 自爆：勝者側のカットインは出さず、自爆した側（攻撃側自身）が
-        // 勝手に爆発して吹き飛ぶ演出だけで完結させる
+        // 勝手に爆発して吹き飛ぶ演出だけで完結させる。
+        // ★自爆は「HPが0になった」わけではない仕様なので、
+        //   見た目上もきちんと倒れたと分かるよう、表示上のHPを0にする。
         if (isAttackerMe) {
           setMyAnim('SELF_DESTRUCT');
+          setMyState((prev) => (prev ? { ...prev, hp: 0 } : prev));
         } else {
           setOpponentAnim('SELF_DESTRUCT');
+          setOpponentState((prev) => (prev ? { ...prev, hp: 0 } : prev));
         }
         setSelfDestruct({ id: Date.now() });
 
@@ -536,34 +550,38 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           </button>
         </div>
 
-        <div className="w-full flex justify-between gap-4">
+        <div className="w-full flex gap-4">
           {myState && (
-            <HpBar
-              name={myCharacter.name}
-              currentHp={myState.hp}
-              maxHp={myState.maxHp}
-              badge={
-                <>
-                  {myState.hp <= 30 && <BakudanReadyBadge />}
-                  {myState.characterId === 'C' && <ComboIndicator comboCount={myState.comboCount} />}
-                  <PoisonBadge poisonStacks={myState.poisonStacks} />
-                </>
-              }
-            />
+            <div className="flex-1 min-w-0">
+              <HpBar
+                name={myCharacter.name}
+                currentHp={myState.hp}
+                maxHp={myState.maxHp}
+                badge={
+                  <>
+                    {myState.hp <= 30 && <BakudanReadyBadge />}
+                    {myState.characterId === 'C' && <ComboIndicator comboCount={myState.comboCount} />}
+                    <PoisonBadge poisonStacks={myState.poisonStacks} />
+                  </>
+                }
+              />
+            </div>
           )}
           {opponentState && (
-            <HpBar
-              name={opponentState.name}
-              currentHp={opponentState.hp}
-              maxHp={opponentState.maxHp}
-              badge={
-                <>
-                  {opponentState.hp <= 30 && <BakudanReadyBadge />}
-                  {opponentState.characterId === 'C' && <ComboIndicator comboCount={opponentState.comboCount} />}
-                  <PoisonBadge poisonStacks={opponentState.poisonStacks} />
-                </>
-              }
-            />
+            <div className="flex-1 min-w-0">
+              <HpBar
+                name={opponentState.name}
+                currentHp={opponentState.hp}
+                maxHp={opponentState.maxHp}
+                badge={
+                  <>
+                    {opponentState.hp <= 30 && <BakudanReadyBadge />}
+                    {opponentState.characterId === 'C' && <ComboIndicator comboCount={opponentState.comboCount} />}
+                    <PoisonBadge poisonStacks={opponentState.poisonStacks} />
+                  </>
+                }
+              />
+            </div>
           )}
         </div>
 
@@ -576,11 +594,15 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
                 myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
                 myAnim === 'KO' ? '-translate-x-40 -translate-y-20 rotate-[-50deg] scale-50 opacity-0 duration-700 ease-in' :
                 myAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
+                myAnim === 'DEFEATED' ? 'grayscale opacity-35 scale-90 -translate-y-1 duration-700' :
                 'translate-x-0 duration-300'
               }`}
             >
               {effect?.type === 'reflect' && isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
+              )}
+              {myAnim === 'DEFEATED' && (
+                <span className="absolute -top-2 -right-1 text-2xl drop-shadow pointer-events-none select-none">👻</span>
               )}
               <button
                 onClick={() => setOpenSkillFor((prev) => (prev === 'me' ? null : 'me'))}
@@ -610,11 +632,15 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
                 opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
                 opponentAnim === 'KO' ? 'translate-x-40 -translate-y-20 rotate-[50deg] scale-50 opacity-0 duration-700 ease-in' :
                 opponentAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
+                opponentAnim === 'DEFEATED' ? 'grayscale opacity-35 scale-90 -translate-y-1 duration-700' :
                 'translate-x-0 duration-300'
               }`}
             >
               {effect?.type === 'reflect' && !isMyTurn && (
                 <div className="absolute inset-0 bg-sky-400/40 border-4 border-sky-300 rounded-full animate-ping pointer-events-none z-20" />
+              )}
+              {opponentAnim === 'DEFEATED' && (
+                <span className="absolute -top-2 -left-1 text-2xl drop-shadow pointer-events-none select-none">👻</span>
               )}
               <button
                 onClick={() => setOpenSkillFor((prev) => (prev === 'opponent' ? null : 'opponent'))}
@@ -650,7 +676,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           <TurnTimer turnId={turnId} duration={GAME_CONFIG.TURN_DURATION_SEC} onTimeUp={handleTimeUp} />
         )}
 
-        <div className="w-full h-40 overflow-y-auto bg-white/60 rounded-xl p-3 text-sm flex flex-col gap-1 border border-zinc-300/50 shadow-sm">
+        <div className="w-full h-32 overflow-y-auto bg-white/60 rounded-xl p-3 text-sm flex flex-col gap-1 border border-zinc-300/50 shadow-sm">
           {log.map((entry, index) => (
             <p key={index} className={index === 0 ? 'text-zinc-900 font-bold' : 'text-zinc-600'}>{entry}</p>
           ))}
