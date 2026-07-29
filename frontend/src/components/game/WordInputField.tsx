@@ -20,14 +20,13 @@ export function WordInputField({ onSubmit, disabled = false, isMyTurn, requiredS
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 2. 入力可能な状態になったら自動でフォーカスする。
-  //    PCでは攻撃/防御どちらのフェーズでもカーソルを合わせるが、
-  //    スマホは意図しないタイミングでキーボードが開かないよう、
-  //    従来通り自分の攻撃ターンの時だけにする（送信後のblur()の効果を保つため）。
+  //    ただしスマホ・タブレット（タッチ端末）では、意図せずキーボードが
+  //    勝手に開いてしまうのを避けるため、自動フォーカス自体を行わない。
+  //    ユーザー自身が入力欄をタップした時だけキーボードが開く。
+  //    PCではこれまで通り、攻撃/防御どちらのフェーズでも自動でカーソルを合わせる。
   useEffect(() => {
     if (disabled) return;
-
-    const isTouch = isCoarsePointerDevice();
-    if (isTouch && !isMyTurn) return;
+    if (isCoarsePointerDevice()) return;
 
     // 画面の描画完了後に確実にフォーカスを当てるためのわずかな遅延
     const timer = setTimeout(() => {
