@@ -10,8 +10,11 @@ export type PlayerState = {
   lastWordLength: number | null;
 };
 
-// deno-lint-ignore no-explicit-any
-export type EffectData = any; // 必要に応じて詳細な型を定義してください
+export type EffectData = {
+  id: number;
+  type: "hit" | "reflect";
+  damage: number;
+};
 
 export type RatingChange = {
   name: string;

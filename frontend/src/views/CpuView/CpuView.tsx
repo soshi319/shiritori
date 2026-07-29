@@ -10,6 +10,9 @@ import { ComboIndicator } from '../../components/game/ComboIndicator';
 import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
+import { SpecialAttackEffect, type SpecialAttackEffectData } from '../../components/game/SpecialAttackEffect';
+import { SelfDestructEffect, type SelfDestructEffectData } from '../../components/game/SelfDestructEffect';
+import { VictoryCutIn, type VictoryCutInData } from '../../components/game/VictoryCutIn';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import { CharacterSkillPopover } from '../../components/game/CharacterSkillPopover';
 import type { PlayerState } from 'shared/types/messageTypes';
@@ -33,11 +36,11 @@ type CpuViewProps = {
   playerName: string;
 };
 
-type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
+type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE' | 'KO' | 'SELF_DESTRUCT';
 type LocalId = 'me' | 'cpu';
 
 export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewProps) {
-  const [status, setStatus] = useState<'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('ANNOUNCING');
+  const [status, setStatus] = useState<'ANNOUNCING' | 'PLAYING' | 'RESULT_CUTIN' | 'GAME_OVER'>('ANNOUNCING');
 
   const [myState, setMyState] = useState<PlayerState | null>(null);
   const [opponentState, setOpponentState] = useState<PlayerState | null>(null);
@@ -57,6 +60,10 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
   const [comboBurst, setComboBurst] = useState<number | null>(null);
   const [poisonBurst, setPoisonBurst] = useState(0);
   const [effect, setEffect] = useState<EffectData | null>(null);
+  const [specialAttack, setSpecialAttack] = useState<SpecialAttackEffectData | null>(null);
+  const [selfDestruct, setSelfDestruct] = useState<SelfDestructEffectData | null>(null);
+  const [victoryCutIn, setVictoryCutIn] = useState<VictoryCutInData | null>(null);
+  const [pendingGameOver, setPendingGameOver] = useState<{ winnerId: LocalId; reason: string } | null>(null);
 
   const [myAnim, setMyAnim] = useState<CharAnimState>('IDLE');
   const [opponentAnim, setOpponentAnim] = useState<CharAnimState>('IDLE');
@@ -79,6 +86,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
   const isMyTurn = myState !== null && activePlayerId === myState.id;
   const isWaitingSync = myInputWord !== null && cpuInputWord === null;
   const isGameOver = status === 'GAME_OVER';
+  const isResultPending = status === 'RESULT_CUTIN';
 
   // 初期化：キャラクター決定＋先攻/後攻をランダムに決定し、後攻にHPボーナスを付与
   // （本家 GameRoom.start() と同じルール）
@@ -148,6 +156,28 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
     }, 600);
     return () => clearTimeout(timer);
   }, [effect]);
+
+  // 一閃・必殺技の演出は0.9秒後に自動で消す
+  useEffect(() => {
+    if (!specialAttack) return;
+    const timer = setTimeout(() => setSpecialAttack(null), 900);
+    return () => clearTimeout(timer);
+  }, [specialAttack]);
+
+  // 決着直後：勝者カットイン（＋KO/自爆演出）を少し見せてから、結果画面に切り替える
+  useEffect(() => {
+    if (status !== 'RESULT_CUTIN' || !pendingGameOver) return;
+    const timer = setTimeout(() => {
+      setWinnerId(pendingGameOver.winnerId);
+      setGameOverReason(pendingGameOver.reason);
+      setVictoryCutIn(null);
+      setSelfDestruct(null);
+      setMyAnim('IDLE');
+      setOpponentAnim('IDLE');
+      setStatus('GAME_OVER');
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [status, pendingGameOver]);
 
   // 2回連続でパスになった側の負け、それ以外は何もなくターンを渡すだけ（本家と同じ仕様）
   function applyPass(whoTimedOut: LocalId) {
@@ -272,9 +302,19 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       setLog((prev) => [`${who}の「${attackerWord}」は無効: ${valResult.errorMessage}`, ...prev]);
 
       if (valResult.failureReason === 'nounEnding') {
-        setWinnerId(isAttackerMe ? 'cpu' : 'me');
-        setGameOverReason('bakudan_failed');
-        setStatus('GAME_OVER');
+        const winner: LocalId = isAttackerMe ? 'cpu' : 'me';
+
+        // 自爆：勝者側のカットインは出さず、自爆した側（攻撃側自身）が
+        // 勝手に爆発して吹き飛ぶ演出だけで完結させる
+        if (isAttackerMe) {
+          setMyAnim('SELF_DESTRUCT');
+        } else {
+          setOpponentAnim('SELF_DESTRUCT');
+        }
+        setSelfDestruct({ id: Date.now() });
+
+        setPendingGameOver({ winnerId: winner, reason: 'bakudan_failed' });
+        setStatus('RESULT_CUTIN');
         return;
       }
 
@@ -320,6 +360,13 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       if (type === 'hit') {
         if (isAttackerMe) { setMyAnim('ATTACK'); setOpponentAnim('HIT_SHAKE'); }
         else { setOpponentAnim('ATTACK'); setMyAnim('HIT_SHAKE'); }
+
+        // 【追加】一閃・必殺技が命中した瞬間だけ、専用の演出を挟む
+        if (valResult.isBakudan) {
+          const attackerChar = isAttackerMe ? myCharacter : opponentCharacter;
+          const label = attackerChar.id === 'A' ? '一閃!!' : `${attackerChar.skillName}!!`;
+          setSpecialAttack({ id: Date.now(), label, themeColor: attackerChar.themeColor });
+        }
 
         setLog((prev) => [
           isAttackerMe
@@ -383,9 +430,23 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
 
     if (result.gameOverReason) {
       const myFinalHp = isAttackerMe ? nextAttackerState.hp : nextDefenderState.hp;
-      setWinnerId(myFinalHp > 0 ? 'me' : 'cpu');
-      setGameOverReason(result.gameOverReason);
-      setStatus('GAME_OVER');
+      const winner: LocalId = myFinalHp > 0 ? 'me' : 'cpu';
+
+      // 通常のダメージ決着：勝者が攻撃ポーズ、敗者がKOで吹き飛ぶ
+      if (winner === 'me') {
+        setMyAnim('ATTACK');
+        setOpponentAnim('KO');
+      } else {
+        setOpponentAnim('ATTACK');
+        setMyAnim('KO');
+      }
+
+      const winnerChar = winner === 'me' ? myCharacter : opponentCharacter;
+      const winnerName = winner === 'me' ? (myState?.name ?? playerName) : (opponentState?.name ?? 'CPU');
+      setVictoryCutIn({ id: Date.now(), characterId: winnerChar.id, playerName: winnerName });
+
+      setPendingGameOver({ winnerId: winner, reason: result.gameOverReason });
+      setStatus('RESULT_CUTIN');
     }
   }
 
@@ -461,6 +522,9 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       <CounterEffect effect={effect} />
       {comboBurst !== null && <ComboBurstEffect comboCount={comboBurst} />}
       {poisonBurst !== 0 && <PoisonBurstEffect />}
+      <SpecialAttackEffect data={specialAttack} />
+      <SelfDestructEffect data={selfDestruct} />
+      <VictoryCutIn data={victoryCutIn} />
 
       <div className="flex-1 overflow-y-auto flex flex-col items-center gap-6 p-6">
         <div className="w-full flex justify-start">
@@ -489,7 +553,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           )}
           {opponentState && (
             <HpBar
-              name="相手"
+              name={opponentState.name}
               currentHp={opponentState.hp}
               maxHp={opponentState.maxHp}
               badge={
@@ -510,6 +574,8 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
                 myAnim === 'ATTACK' ? 'translate-x-16 duration-150 z-10' :
                 myAnim === 'REFLECT_BACK' ? '-translate-x-12 duration-150' :
                 myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
+                myAnim === 'KO' ? '-translate-x-40 -translate-y-20 rotate-[-50deg] scale-50 opacity-0 duration-700 ease-in' :
+                myAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -542,6 +608,8 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
                 opponentAnim === 'ATTACK' ? '-translate-x-16 duration-150 z-10' :
                 opponentAnim === 'REFLECT_BACK' ? 'translate-x-12 duration-150' :
                 opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' :
+                opponentAnim === 'KO' ? 'translate-x-40 -translate-y-20 rotate-[50deg] scale-50 opacity-0 duration-700 ease-in' :
+                opponentAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -578,7 +646,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           </p>
         </div>
 
-        {!isGameOver && (
+        {!isGameOver && !isResultPending && (
           <TurnTimer turnId={turnId} duration={GAME_CONFIG.TURN_DURATION_SEC} onTimeUp={handleTimeUp} />
         )}
 
@@ -589,7 +657,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
         </div>
       </div>
 
-      {!isGameOver && isMyTurn && myState && myState.hp <= 30 && (
+      {!isGameOver && !isResultPending && isMyTurn && myState && myState.hp <= 30 && (
         <div className="w-full text-center animate-pulse">
           {myState.characterId === 'A' ? (
             <p className="text-2xl font-black text-red-700 tracking-wide drop-shadow-sm">
@@ -604,7 +672,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       )}
 
       <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40 flex flex-col gap-4">
-        {!isGameOver && matchingPastWords.length > 0 && (
+        {!isGameOver && !isResultPending && matchingPastWords.length > 0 && (
           <div className="w-full max-w-md mx-auto animate-fade-in">
             <p className="text-xs font-bold text-zinc-600 mb-1.5 px-1">
                「{requiredStartNow}」 から始まる使用済みの言葉
@@ -622,7 +690,11 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           </div>
         )}
 
-        {!isGameOver ? (
+        {isResultPending ? (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <p className="text-zinc-700 font-black text-base tracking-wide animate-pulse">決着…</p>
+          </div>
+        ) : !isGameOver ? (
           <div className="flex flex-col w-full items-center">
             {inputError && (
               <p className="text-red-700 text-sm font-bold mb-2">{inputError}</p>

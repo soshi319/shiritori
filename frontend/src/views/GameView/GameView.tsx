@@ -10,6 +10,9 @@ import { ComboIndicator } from '../../components/game/ComboIndicator';
 import { PoisonBadge } from '../../components/game/PoisonBadge';
 import { ComboBurstEffect } from '../../components/game/ComboBurstEffect';
 import { PoisonBurstEffect } from '../../components/game/PoisonBurstEffect';
+import { SpecialAttackEffect, type SpecialAttackEffectData } from '../../components/game/SpecialAttackEffect';
+import { SelfDestructEffect, type SelfDestructEffectData } from '../../components/game/SelfDestructEffect';
+import { VictoryCutIn, type VictoryCutInData } from '../../components/game/VictoryCutIn';
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import type { ServerMessage, ClientMessage, PlayerState, RatingChange } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
@@ -26,7 +29,7 @@ type GameViewProps = {
 };
 
 export function GameView({ changeScreen, myCharacterId, playerName }: GameViewProps) {
-  const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'GAME_OVER'>('CONNECTING');
+  const [status, setStatus] = useState<'CONNECTING' | 'WAITING' | 'ANNOUNCING' | 'PLAYING' | 'RESULT_CUTIN' | 'GAME_OVER'>('CONNECTING');
   const statusRef = useRef(status);
   const [ws, setWs] = useState<WebSocket | null>(null);
 
@@ -52,12 +55,20 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
 
   const [comboBurst, setComboBurst] = useState<number | null>(null);
   const [poisonBurst, setPoisonBurst] = useState(0);
+  const [specialAttack, setSpecialAttack] = useState<SpecialAttackEffectData | null>(null);
+  const [selfDestruct, setSelfDestruct] = useState<SelfDestructEffectData | null>(null);
+  const [victoryCutIn, setVictoryCutIn] = useState<VictoryCutInData | null>(null);
+  const [pendingGameOver, setPendingGameOver] = useState<{
+    winnerId: string;
+    reason: string;
+    ratings: { winner: RatingChange; loser: RatingChange } | null;
+  } | null>(null);
 
   const myCharacter = characters.find((c) => c.id === myCharacterId)!;
   const opponentCharacter = characters.find((c) => c.id === opponentState?.characterId) || characters[0];
   const [openSkillFor, setOpenSkillFor] = useState<'me' | 'opponent' | null>(null);
 
-  type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE';
+  type CharAnimState = 'IDLE' | 'ATTACK' | 'REFLECT_BACK' | 'HIT_SHAKE' | 'KO' | 'SELF_DESTRUCT';
 
   // 自分と相手の演出状態を管理するState
   const [myAnim, setMyAnim] = useState<CharAnimState>('IDLE');
@@ -126,6 +137,29 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
     }, 600);
     return () => clearTimeout(timer);
   }, [effect]);
+
+  // 一閃・必殺技の演出は0.9秒後に自動で消す
+  useEffect(() => {
+    if (!specialAttack) return;
+    const timer = setTimeout(() => setSpecialAttack(null), 900);
+    return () => clearTimeout(timer);
+  }, [specialAttack]);
+
+  // 決着直後：勝者カットイン（＋KO/自爆演出）を少し見せてから、結果画面に切り替える
+  useEffect(() => {
+    if (status !== 'RESULT_CUTIN' || !pendingGameOver) return;
+    const timer = setTimeout(() => {
+      setWinnerId(pendingGameOver.winnerId);
+      setGameOverReason(pendingGameOver.reason);
+      setRatings(pendingGameOver.ratings);
+      setVictoryCutIn(null);
+      setSelfDestruct(null);
+      setMyAnim('IDLE');
+      setOpponentAnim('IDLE');
+      setStatus('GAME_OVER');
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [status, pendingGameOver]);
 
   // WebSocket接続（この中ではrefを経由して常に最新の状態を参照する）
   useEffect(() => {
@@ -206,6 +240,16 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
                 setOpponentAnim('ATTACK');
                 setMyAnim('HIT_SHAKE');
               }
+
+              // 【追加】一閃・必殺技が命中した瞬間だけ、専用の演出を挟む
+              if (msg.payload.isBakudan) {
+                const attackerCharacterId = isAttackerMe
+                  ? myStateRef.current?.characterId
+                  : opponentStateRef.current?.characterId;
+                const attackerChar = characters.find((c) => c.id === attackerCharacterId) ?? characters[0];
+                const label = attackerChar.id === 'A' ? '一閃!!' : `${attackerChar.skillName}!!`;
+                setSpecialAttack({ id: Date.now(), label, themeColor: attackerChar.themeColor });
+              }
             } else {
               // 反射：攻撃側自身が後ろに下がりつつダメージを受ける
               if (isAttackerMe) {
@@ -279,17 +323,64 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
         }
 
         case 'GAME_OVER': {
-          setWinnerId(msg.payload.winnerId);
-          setGameOverReason(msg.payload.reason);
-          setRatings(msg.payload.ratings ?? null);
-          setStatus('GAME_OVER');
+          const { winnerId: winner, reason, ratings: newRatings } = msg.payload;
+
+          // 攻撃で決着がつくケース（HP0/毒/自爆）だけ、結果画面の前に演出を挟む。
+          // 時間切れ・通信切断はドラマチックな一撃が存在しないので、そのまま結果画面へ。
+          const cutinReasons = ['hp_zero', 'bakudan_failed', 'poison'];
+
+          if (cutinReasons.includes(reason)) {
+            const winnerIsMe = myStateRef.current?.id === winner;
+
+            if (reason === 'bakudan_failed') {
+              // 自爆：勝者側のカットインは出さず、自爆した側（敗者）が
+              // 勝手に爆発して吹き飛ぶ演出だけで完結させる
+              if (winnerIsMe) {
+                setOpponentAnim('SELF_DESTRUCT');
+              } else {
+                setMyAnim('SELF_DESTRUCT');
+              }
+              setSelfDestruct({ id: Date.now() });
+            } else {
+              // 通常のダメージ決着：勝者が攻撃ポーズ、敗者がKOで吹き飛ぶ
+              // ＋勝者のカットインを表示
+              if (winnerIsMe) {
+                setMyAnim('ATTACK');
+                setOpponentAnim('KO');
+              } else {
+                setOpponentAnim('ATTACK');
+                setMyAnim('KO');
+              }
+
+              const winnerCharacterId = winnerIsMe
+                ? myStateRef.current?.characterId
+                : opponentStateRef.current?.characterId;
+              const winnerName = winnerIsMe
+                ? myStateRef.current?.name
+                : opponentStateRef.current?.name;
+
+              setVictoryCutIn({
+                id: Date.now(),
+                characterId: winnerCharacterId ?? myCharacterId,
+                playerName: winnerName ?? '',
+              });
+            }
+
+            setPendingGameOver({ winnerId: winner, reason, ratings: newRatings ?? null });
+            setStatus('RESULT_CUTIN');
+          } else {
+            setWinnerId(winner);
+            setGameOverReason(reason);
+            setRatings(newRatings ?? null);
+            setStatus('GAME_OVER');
+          }
           break;
         }
       }
     };
 
     socket.onclose = () => {
-      if (statusRef.current !== 'GAME_OVER') {
+      if (statusRef.current !== 'GAME_OVER' && statusRef.current !== 'RESULT_CUTIN') {
         setLog((prev) => ['サーバーから切断されました', ...prev]);
         setStatus('GAME_OVER');
       }
@@ -343,6 +434,7 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
 
   const isMyTurn = myState && activePlayerId === myState.id;
   const isGameOver = status === 'GAME_OVER';
+  const isResultPending = status === 'RESULT_CUTIN';
 
   const requiredStartNow = getRequiredNextStart(currentWord);
 
@@ -355,6 +447,9 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
       <CounterEffect effect={effect} />
       {comboBurst !== null && <ComboBurstEffect comboCount={comboBurst} />}
       {poisonBurst !== 0 && <PoisonBurstEffect />}
+      <SpecialAttackEffect data={specialAttack} />
+      <SelfDestructEffect data={selfDestruct} />
+      <VictoryCutIn data={victoryCutIn} />
 
       <div className="flex-1 overflow-y-auto flex flex-col items-center gap-6 p-6">
         <div className="w-full flex justify-between gap-4">
@@ -375,7 +470,7 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
           )}
           {opponentState && (
             <HpBar
-              name="相手"
+              name={opponentState.name}
               currentHp={opponentState.hp}
               maxHp={opponentState.maxHp}
               badge={
@@ -396,6 +491,8 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
                 myAnim === 'ATTACK' ? 'translate-x-16 duration-150 z-10' :
                 myAnim === 'REFLECT_BACK' ? '-translate-x-12 duration-150' :
                 myAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                myAnim === 'KO' ? '-translate-x-40 -translate-y-20 rotate-[-50deg] scale-50 opacity-0 duration-700 ease-in' :
+                myAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -428,6 +525,8 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
                 opponentAnim === 'ATTACK' ? '-translate-x-16 duration-150 z-10' :
                 opponentAnim === 'REFLECT_BACK' ? 'translate-x-12 duration-150' :
                 opponentAnim === 'HIT_SHAKE' ? 'animate-shake duration-100' : 
+                opponentAnim === 'KO' ? 'translate-x-40 -translate-y-20 rotate-[50deg] scale-50 opacity-0 duration-700 ease-in' :
+                opponentAnim === 'SELF_DESTRUCT' ? 'animate-shake scale-125 opacity-0 duration-500 ease-out' :
                 'translate-x-0 duration-300'
               }`}
             >
@@ -464,7 +563,7 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
           </p>
         </div>
 
-        {!isGameOver && (
+        {!isGameOver && !isResultPending && (
           <TurnTimer turnId={turnId} duration={turnDuration} onTimeUp={handleTimeUpDummy} />
         )}
 
@@ -476,7 +575,7 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
       </div>
 
       {/* 【追加】必殺技の発動条件を、ログの下に大きく目立たせて表示 */}
-      {!isGameOver && isMyTurn && myState && myState.hp <= 30 && (
+      {!isGameOver && !isResultPending && isMyTurn && myState && myState.hp <= 30 && (
         <div className="w-full text-center animate-pulse">
           {myState.characterId === 'A' ? (
             <p className="text-2xl font-black text-red-700 tracking-wide drop-shadow-sm">
@@ -491,7 +590,7 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
       )}
 
       <div className="sticky bottom-0 bg-zinc-300 p-4 border-t border-zinc-400/40 flex flex-col gap-4">
-        {!isGameOver && matchingPastWords.length > 0 && (
+        {!isGameOver && !isResultPending && matchingPastWords.length > 0 && (
           <div className="w-full max-w-md mx-auto animate-fade-in">
             <p className="text-xs font-bold text-zinc-600 mb-1.5 px-1">
               　「{requiredStartNow}」 から始まる使用済みの言葉
@@ -511,7 +610,11 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
 
 
 
-        {!isGameOver ? (
+        {isResultPending ? (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <p className="text-zinc-700 font-black text-base tracking-wide animate-pulse">決着…</p>
+          </div>
+        ) : !isGameOver ? (
           <div className="flex flex-col w-full items-center">
             {inputError && (
               <p className="text-red-700 text-sm font-bold mb-2">{inputError}</p>

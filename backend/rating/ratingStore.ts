@@ -68,6 +68,18 @@ export async function removeRating(name: string): Promise<void> {
   await upstashCommand(["ZREM", RATING_KEY, name]);
 }
 
+/**
+ * 指定したプレイヤー名のレートを、任意の値に変更して保存する。
+ * resetRating（1500固定）と違い、好きな数値を直接指定できる。
+ * 管理用途（サポート対応・不正対策・イベント調整など）で個別に呼び出すことを想定。
+ */
+export async function setRatingExact(
+  name: string,
+  rating: number,
+): Promise<void> {
+  await setRating(name, Math.round(rating));
+}
+
 function calculateEloDelta(
   myRating: number,
   opponentRating: number,
