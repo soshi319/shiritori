@@ -75,6 +75,10 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
   const [opponentAnim, setOpponentAnim] = useState<CharAnimState>('IDLE');
 
   const activePlayerIdRef = useRef('');
+  // ★決着カットインで「どの一撃で倒したか」を表示するため、直近のターン結果を覚えておく
+  const lastTurnWordRef = useRef<string>('');
+  const lastTurnEffectTypeRef = useRef<'hit' | 'reflect' | null>(null);
+  const lastTurnIsBakudanRef = useRef<boolean>(false);
 
   // 先攻/後攻の発表演出が終わったら、自動的に対戦画面へ切り替える
   useEffect(() => {
@@ -231,6 +235,11 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
 
           const isAttackerMe = myStateRef.current?.id === activePlayerIdRef.current;
 
+          // ★決着カットイン用に、今回のターンの内容を覚えておく
+          lastTurnWordRef.current = msg.payload.word;
+          lastTurnEffectTypeRef.current = msg.payload.effect?.type ?? null;
+          lastTurnIsBakudanRef.current = msg.payload.isBakudan;
+
           setMyState(msg.payload.myState);
           setOpponentState(msg.payload.opponentState);
           setCurrentWord(msg.payload.word);
@@ -374,10 +383,32 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
                 ? myStateRef.current?.name
                 : opponentStateRef.current?.name;
 
+              // ★どの一撃で決着したかを組み立てる
+              //   ・毒が原因の決着 → 「毒のダメージで撃破」
+              //   ・一閃/必殺技が命中して決着 → 「◯◯」で一閃/必殺技！
+              //   ・相手の言葉を読み切って反射して決着 → 「◯◯」を読み切って反射！
+              //   ・それ以外の通常ヒットでの決着 → 「◯◯」で撃破！
+              const finishWord = lastTurnWordRef.current;
+              const winnerChar = characters.find((c) => c.id === winnerCharacterId) ?? characters[0];
+
+              const finish: VictoryCutInData['finish'] =
+                reason === 'poison'
+                  ? { kind: 'poison' }
+                  : lastTurnIsBakudanRef.current && lastTurnEffectTypeRef.current === 'hit'
+                  ? {
+                      kind: 'special',
+                      word: finishWord,
+                      label: winnerChar.id === 'A' ? '一閃' : winnerChar.skillName,
+                    }
+                  : lastTurnEffectTypeRef.current === 'reflect'
+                  ? { kind: 'reflect', word: finishWord }
+                  : { kind: 'hit', word: finishWord };
+
               setVictoryCutIn({
                 id: Date.now(),
                 characterId: winnerCharacterId ?? myCharacterId,
                 playerName: winnerName ?? '',
+                finish,
               });
             }
 

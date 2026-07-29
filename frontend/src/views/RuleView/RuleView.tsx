@@ -115,11 +115,14 @@ const PAGES: Page[] = [
     content: (
       <>
         <p>
-          HP<strong className="text-red-600 font-bold">30以下</strong>の時のみ発動可能な一撃必殺です。
+          HP<strong className="text-red-600 font-bold">30以下</strong>の時のみ発動できる、大逆転を狙える一撃です。
         </p>
         <div className="bg-red-50/80 border border-red-200/80 p-3.5 rounded-xl mt-2 flex flex-col gap-1.5">
           <p className="font-bold text-red-800 text-base">
             条件: 「4文字」かつ「ん」で終わる言葉
+          </p>
+          <p className="text-red-800 text-sm font-semibold">
+            成功すると、固定<strong className="text-red-600">60ダメージ</strong>を与えます。
           </p>
           <p className="text-xs text-red-700 leading-normal">
             ※条件を満たさずに「ん」で終わる言葉を出すと反則負けになります。

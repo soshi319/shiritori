@@ -457,7 +457,23 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
 
       const winnerChar = winner === 'me' ? myCharacter : opponentCharacter;
       const winnerName = winner === 'me' ? (myState?.name ?? playerName) : (opponentState?.name ?? 'CPU');
-      setVictoryCutIn({ id: Date.now(), characterId: winnerChar.id, playerName: winnerName });
+
+      // ★どの一撃で決着したかを組み立てる（GameViewと同じルール）
+      const reason = result.gameOverReason;
+      const finish: VictoryCutInData['finish'] =
+        reason === 'poison'
+          ? { kind: 'poison' }
+          : valResult.isBakudan && result.effect?.type === 'hit'
+          ? {
+              kind: 'special',
+              word: attackerWord,
+              label: winnerChar.id === 'A' ? '一閃' : winnerChar.skillName,
+            }
+          : result.effect?.type === 'reflect'
+          ? { kind: 'reflect', word: attackerWord }
+          : { kind: 'hit', word: attackerWord };
+
+      setVictoryCutIn({ id: Date.now(), characterId: winnerChar.id, playerName: winnerName, finish });
 
       setPendingGameOver({ winnerId: winner, reason: result.gameOverReason });
       setStatus('RESULT_CUTIN');

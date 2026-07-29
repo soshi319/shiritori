@@ -37,7 +37,7 @@ export function resolveTurn(
     const attackerState = isReflected ? nextOpponentState : nextMyState;
 
     if (isBakudan) {
-        mainDamage = 999;
+        mainDamage = 60;
     } else {
         const attackerChar = characters.find((c) =>
             c.id === attackerState.characterId
