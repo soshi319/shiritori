@@ -22,7 +22,7 @@ import {
   validateWord,
 } from 'shared/logic/shiritoriValidator';
 // ★ turnResolver.ts は shared/logic/ に置く前提（gameRoom.ts と全く同じロジックをフロントでも使う）
-import { resolveTurn } from 'shared/logic/turnResolver';
+import { resolveTurn, BAKUDAN_DAMAGE } from 'shared/logic/turnResolver';
 import { GAME_CONFIG } from 'shared/config/gameConfig';
 // ★ CPU用の固定辞書。サーバー側 GameRoom.handleCpuAttack と共通のものを使う
 import { CPU_DICTIONARY } from 'shared/data/cpuDictionary';
@@ -443,6 +443,26 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
     setInputError(null);
 
     if (result.gameOverReason) {
+      const reason = result.gameOverReason;
+
+      if (reason === 'bakudan_failed') {
+        // ★一閃・必殺技が相手を倒しきれず自滅したケース。
+        //   勝者側のカットインは出さず、発動した本人（攻撃側）が
+        //   勝手に爆発して吹き飛ぶ演出だけで完結させる（自爆と同じ扱い）
+        const winner: LocalId = isAttackerMe ? 'cpu' : 'me';
+
+        if (isAttackerMe) {
+          setMyAnim('SELF_DESTRUCT');
+        } else {
+          setOpponentAnim('SELF_DESTRUCT');
+        }
+        setSelfDestruct({ id: Date.now() });
+
+        setPendingGameOver({ winnerId: winner, reason });
+        setStatus('RESULT_CUTIN');
+        return;
+      }
+
       const myFinalHp = isAttackerMe ? nextAttackerState.hp : nextDefenderState.hp;
       const winner: LocalId = myFinalHp > 0 ? 'me' : 'cpu';
 
@@ -459,7 +479,6 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
       const winnerName = winner === 'me' ? (myState?.name ?? playerName) : (opponentState?.name ?? 'CPU');
 
       // ★どの一撃で決着したかを組み立てる（GameViewと同じルール）
-      const reason = result.gameOverReason;
       const finish: VictoryCutInData['finish'] =
         reason === 'poison'
           ? { kind: 'poison' }
@@ -475,7 +494,7 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
 
       setVictoryCutIn({ id: Date.now(), characterId: winnerChar.id, playerName: winnerName, finish });
 
-      setPendingGameOver({ winnerId: winner, reason: result.gameOverReason });
+      setPendingGameOver({ winnerId: winner, reason });
       setStatus('RESULT_CUTIN');
     }
   }
@@ -601,6 +620,16 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           )}
         </div>
 
+        {/* ★変更: HPバーとキャラクターの間に「前の言葉」を帯として挟む */}
+        <div className="flex flex-col items-center gap-1 -mt-2">
+          <p className="text-xs text-zinc-700 font-bold">
+            {isMyTurn ? '⚔️ あなたのターン' : '🛡️ 相手のターン（反射の準備！）'}
+          </p>
+          <p className="text-3xl sm:text-4xl font-black text-zinc-900 tracking-wider">
+            「{currentWord}」
+          </p>
+        </div>
+
         <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 relative min-h-[160px]">
           {myState && (
             <div
@@ -673,15 +702,6 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-sm text-zinc-700 font-medium">
-            {isMyTurn ? 'あなたのターン' : '相手のターン（反射の準備！）'}
-          </p>
-          <p className="text-4xl font-black text-zinc-900 tracking-wider">
-            「{currentWord}」
-          </p>
-        </div>
-
         {!isGameOver && !isResultPending && (
           <TurnTimer turnId={turnId} duration={GAME_CONFIG.TURN_DURATION_SEC} onTimeUp={handleTimeUp} />
         )}
@@ -693,15 +713,16 @@ export function CpuView({ changeScreen, selectedCharId, playerName }: CpuViewPro
         </div>
       </div>
 
-      {!isGameOver && !isResultPending && isMyTurn && myState && myState.hp <= 30 && (
+      {!isGameOver && !isResultPending && isMyTurn && myState && opponentState &&
+        myState.hp <= 30 && opponentState.hp <= BAKUDAN_DAMAGE && (
         <div className="w-full text-center animate-pulse">
           {myState.characterId === 'A' ? (
             <p className="text-2xl font-black text-red-700 tracking-wide drop-shadow-sm">
-              🗡️ 「ん」で終わる 4文字で「一閃」発動！
+              🗡️ 「ん」で終わる4文字でとどめ！「一閃」発動！
             </p>
           ) : (
             <p className="text-xl font-black text-red-700 tracking-wide drop-shadow-sm">
-              🗡️ 4文字で「ん」で終わる言葉で必殺技発動！
+              🗡️ 4文字で「ん」で終わる言葉でとどめの必殺技！
             </p>
           )}
         </div>

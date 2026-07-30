@@ -2,11 +2,20 @@ import type {
     EffectData,
     PlayerState,
 } from "../../shared/types/messageTypes.ts";
-import { characters } from "../data/characters.ts";
-import { calculateBaseDamage } from "../logic/damageCalculator.ts";
+import { characters } from "shared/data/characters.ts";
+import { calculateBaseDamage } from "shared/logic/damageCalculator.ts";
 
 const POISON_DAMAGE_PER_STACK = 5;
 const COMBO_DAMAGE_BONUS_RATE = 0.2;
+// ★一閃・必殺技（バクダン）の固定ダメージ。
+//   以前は999で「発動＝確定即死」だったが、キャラのmaxHp（90〜150）を
+//   完全に無視してしまい、特にバルド(HP150)のタンクとしての存在意義を
+//   薄めてしまっていたため、以下のように緩和する。
+//   ・HPがこの値以下まで削られている相手には引き続きほぼ確定キルの迫力を保てる
+//   ・フルHPの相手には即死にならない（バルドはフルHPから受けても90残る）
+//   ・発動者自身はHP30以下の時にしか撃てないため、反射された場合は
+//     このダメージで確実に自滅する（返り討ちのリスクは変わらず機能する）
+export const BAKUDAN_DAMAGE = 60;
 
 export type ResolveTurnResult = {
     isValid: boolean;
@@ -15,7 +24,7 @@ export type ResolveTurnResult = {
     poisonDamage: { myDamage: number; opponentDamage: number } | null;
     nextMyState: PlayerState;
     nextOpponentState: PlayerState;
-    gameOverReason: "hp_zero" | "poison" | null;
+    gameOverReason: "hp_zero" | "poison" | "bakudan_failed" | null;
     enduredPlayerId: string | null;
 };
 
@@ -37,7 +46,7 @@ export function resolveTurn(
     const attackerState = isReflected ? nextOpponentState : nextMyState;
 
     if (isBakudan) {
-        mainDamage = 60;
+        mainDamage = BAKUDAN_DAMAGE;
     } else {
         const attackerChar = characters.find((c) =>
             c.id === attackerState.characterId
@@ -74,22 +83,36 @@ export function resolveTurn(
         };
     }
 
-    // アレスの食いしばり判定
-    if (
-        nextMyState.characterId === "A" && nextMyState.hp <= 0 &&
-        !nextMyState.hasEndured
-    ) {
-        nextMyState.hp = 1;
-        nextMyState.hasEndured = true;
-        enduredPlayerId = nextMyState.id;
+    // ★一閃・必殺技（ん終わりの単語）を発動しても相手を倒しきれなかった場合、
+    //   その単語自体が「ん」で終わっているため、決着しないまま次のプレイヤーに
+    //   手番を渡すと「『ん』から始まる言葉」を要求される詰み状態になってしまう。
+    //   これを防ぐため、決めきれなかった一閃は発動した本人の反則負け（自滅）とする。
+    //   （条件を満たさず「ん」を出した時の自爆と同じ扱い。食いしばりの対象外）
+    let bakudanBackfired = false;
+    if (isBakudan && targetState.hp > 0) {
+        bakudanBackfired = true;
+        nextMyState.hp = 0;
     }
-    if (
-        nextOpponentState.characterId === "A" && nextOpponentState.hp <= 0 &&
-        !nextOpponentState.hasEndured
-    ) {
-        nextOpponentState.hp = 1;
-        nextOpponentState.hasEndured = true;
-        enduredPlayerId = nextOpponentState.id;
+
+    // アレスの食いしばり判定（一閃の不発による自滅は対象外）
+    if (!bakudanBackfired) {
+        if (
+            nextMyState.characterId === "A" && nextMyState.hp <= 0 &&
+            !nextMyState.hasEndured
+        ) {
+            nextMyState.hp = 1;
+            nextMyState.hasEndured = true;
+            enduredPlayerId = nextMyState.id;
+        }
+        if (
+            nextOpponentState.characterId === "A" &&
+            nextOpponentState.hp <= 0 &&
+            !nextOpponentState.hasEndured
+        ) {
+            nextOpponentState.hp = 1;
+            nextOpponentState.hasEndured = true;
+            enduredPlayerId = nextOpponentState.id;
+        }
     }
 
     const isGameOverAfterMain = nextMyState.hp <= 0 ||
@@ -114,14 +137,16 @@ export function resolveTurn(
         ? { myDamage: myPoisonDmg, opponentDamage: opponentPoisonDmg }
         : null;
 
-    let gameOverReason: "hp_zero" | "poison" | null = null;
+    let gameOverReason: "hp_zero" | "poison" | "bakudan_failed" | null = null;
 
-    if (nextMyState.hp <= 0 || nextOpponentState.hp <= 0) {
+    if (bakudanBackfired) {
+        gameOverReason = "bakudan_failed";
+    } else if (nextMyState.hp <= 0 || nextOpponentState.hp <= 0) {
         gameOverReason = isGameOverAfterMain ? "hp_zero" : "poison";
-
-        if (nextMyState.hp < 0) nextMyState.hp = 0;
-        if (nextOpponentState.hp < 0) nextOpponentState.hp = 0;
     }
+
+    if (nextMyState.hp < 0) nextMyState.hp = 0;
+    if (nextOpponentState.hp < 0) nextOpponentState.hp = 0;
 
     return {
         isValid: true,

@@ -16,6 +16,7 @@ import { VictoryCutIn, type VictoryCutInData } from '../../components/game/Victo
 import { BakudanReadyBadge } from '../../components/game/BakudanReadyBadge';
 import type { ServerMessage, ClientMessage, PlayerState, RatingChange } from 'shared/types/messageTypes';
 import { getRequiredNextStart, normalizeWordForComparison } from 'shared/logic/shiritoriValidator';
+import { BAKUDAN_DAMAGE } from 'shared/logic/turnResolver';
 import { WS_URL } from 'shared/config/serverConfig'; // ★サーバー接続先を設定ファイルから読み込む
 import { CharacterSkillPopover } from '../../components/game/CharacterSkillPopover';
 
@@ -533,6 +534,17 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
           )}
         </div>
 
+        {/* ★変更: HPバーとキャラクターの間に「前の言葉」を帯として挟む。
+            入力中でも常に見えるようにし、HPバーからも離れすぎないようにする */}
+        <div className="flex flex-col items-center gap-1 -mt-2">
+          <p className="text-xs text-zinc-700 font-bold">
+            {isMyTurn ? '⚔️ あなたのターン' : '🛡️ 相手のターン（反射の準備！）'}
+          </p>
+          <p className="text-3xl sm:text-4xl font-black text-zinc-900 tracking-wider">
+            「{currentWord}」
+          </p>
+        </div>
+
         <div className="w-full flex justify-center items-end gap-5 sm:gap-36 mt-2 px-2 relative min-h-[160px]">
           {myState && (
             <div 
@@ -605,15 +617,6 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-sm text-zinc-700 font-medium">
-            {isMyTurn ? 'あなたのターン' : '相手のターン（反射の準備！）'}
-          </p>
-          <p className="text-4xl font-black text-zinc-900 tracking-wider">
-            「{currentWord}」
-          </p>
-        </div>
-
         {!isGameOver && !isResultPending && (
           <TurnTimer turnId={turnId} duration={turnDuration} onTimeUp={handleTimeUpDummy} />
         )}
@@ -625,16 +628,20 @@ export function GameView({ changeScreen, myCharacterId, playerName }: GameViewPr
         </div>
       </div>
 
-      {/* 【追加】必殺技の発動条件を、ログの下に大きく目立たせて表示 */}
-      {!isGameOver && !isResultPending && isMyTurn && myState && myState.hp <= 30 && (
+      {/* 【追加】必殺技の発動条件を、ログの下に大きく目立たせて表示。
+          ★倒しきれる時だけ出す（相手のHPが一閃ダメージ以下の時のみ）。
+          そうでないと「発動！」と煽っておきながら実際は倒せず、
+          誤解を招いてしまうため。 */}
+      {!isGameOver && !isResultPending && isMyTurn && myState && opponentState &&
+        myState.hp <= 30 && opponentState.hp <= BAKUDAN_DAMAGE && (
         <div className="w-full text-center animate-pulse">
           {myState.characterId === 'A' ? (
             <p className="text-2xl font-black text-red-700 tracking-wide drop-shadow-sm">
-              🗡️ 「ん」で終わる4文字で「一閃」発動！
+              🗡️ 「ん」で終わる4文字でとどめ！「一閃」発動！
             </p>
           ) : (
             <p className="text-xl font-black text-red-700 tracking-wide drop-shadow-sm">
-              🗡️ 4文字で「ん」で終わる言葉で必殺技発動！
+              🗡️ 4文字で「ん」で終わる言葉でとどめの必殺技！
             </p>
           )}
         </div>
