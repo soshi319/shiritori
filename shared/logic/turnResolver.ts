@@ -86,33 +86,42 @@ export function resolveTurn(
     // ★一閃・必殺技（ん終わりの単語）を発動しても相手を倒しきれなかった場合、
     //   その単語自体が「ん」で終わっているため、決着しないまま次のプレイヤーに
     //   手番を渡すと「『ん』から始まる言葉」を要求される詰み状態になってしまう。
-    //   これを防ぐため、決めきれなかった一閃は発動した本人の反則負け（自滅）とする。
-    //   （条件を満たさず「ん」を出した時の自爆と同じ扱い。食いしばりの対象外）
+    //   これを防ぐため、決めきれなかった一閃は本来、発動した本人の反則負け（自滅）とする。
+    //   ただし、アレスは固有スキル「根性」（HP1で1回だけ耐える）をここでも優先して発動できる。
+    //   根性で耐えられた場合は自滅扱いにせず、通常通りターンが継続する（もう一度一閃を狙える）。
     let bakudanBackfired = false;
     if (isBakudan && targetState.hp > 0) {
-        bakudanBackfired = true;
-        nextMyState.hp = 0;
-    }
-
-    // アレスの食いしばり判定（一閃の不発による自滅は対象外）
-    if (!bakudanBackfired) {
-        if (
-            nextMyState.characterId === "A" && nextMyState.hp <= 0 &&
-            !nextMyState.hasEndured
-        ) {
+        if (nextMyState.characterId === "A" && !nextMyState.hasEndured) {
             nextMyState.hp = 1;
             nextMyState.hasEndured = true;
             enduredPlayerId = nextMyState.id;
+        } else {
+            bakudanBackfired = true;
+            nextMyState.hp = 0;
         }
-        if (
-            nextOpponentState.characterId === "A" &&
-            nextOpponentState.hp <= 0 &&
-            !nextOpponentState.hasEndured
-        ) {
-            nextOpponentState.hp = 1;
-            nextOpponentState.hasEndured = true;
-            enduredPlayerId = nextOpponentState.id;
-        }
+    }
+
+    // ★一閃が「反射」されて致命傷を受けた場合は、根性があっても耐えられない
+    //   （反射で返り討ちにされた時までは救済しない）。
+    //   それ以外（通常のダメージ・不発による自滅を除く）は、これまで通り根性の対象。
+    const isFatalReflectedBakudan = isBakudan && isReflected;
+
+    // アレスの食いしばり判定
+    if (
+        nextMyState.characterId === "A" && nextMyState.hp <= 0 &&
+        !nextMyState.hasEndured && !isFatalReflectedBakudan
+    ) {
+        nextMyState.hp = 1;
+        nextMyState.hasEndured = true;
+        enduredPlayerId = nextMyState.id;
+    }
+    if (
+        nextOpponentState.characterId === "A" && nextOpponentState.hp <= 0 &&
+        !nextOpponentState.hasEndured
+    ) {
+        nextOpponentState.hp = 1;
+        nextOpponentState.hasEndured = true;
+        enduredPlayerId = nextOpponentState.id;
     }
 
     const isGameOverAfterMain = nextMyState.hp <= 0 ||

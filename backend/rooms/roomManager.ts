@@ -105,11 +105,13 @@ export class RoomManager {
     // 待機エントリだけが残ってしまうケースへの対策。
     // ・ソケットが既に OPEN でない（切断済み）
     // ・そもそも今回リクエストしてきた本人と同一ソケット（多重リクエスト）
+    // ・待機中のプレイヤーと名前が同じ（＝高確率で同一人物の別ソケット）
     // のいずれかに該当する場合は、古い待機エントリを無効なものとして破棄する。
     if (
       this.waitingPlayer &&
       (this.waitingPlayer.socket.readyState !== WebSocket.OPEN ||
-        this.waitingPlayer.socket === socket)
+        this.waitingPlayer.socket === socket ||
+        this.waitingPlayer.name === name)
     ) {
       this.waitingPlayer = null;
     }
